@@ -1,0 +1,5 @@
+"Full Name","Matric Number","Email","Phone","Package","Package Price","Total Paid","Outstanding","Payment Status","Has Invite","Created At"
+"Test Student Webhook","TEST/WEBHOOK/001","test@webhook.com","undefined","Basic Package",15000,0,15000,"NOT_PAID","No","2026-02-05T11:24:25.514Z"
+"Test Student Upgrade","TEST/UPGRADE/001","test@upgrade.com","undefined","Standard Package",25000,0,25000,"NOT_PAID","No","2026-02-05T11:25:56.004Z"
+"John Doe","CSC/2020/001","john@example.com","+2348012345678","Diamond Package",60000,0,60000,"NOT_PAID","No","2026-02-05T14:22:37.667Z"
+"John Doe","190408026","okesanyakorode2@gmail.com","+2348012345678","Standard Package",25000,25000,0,"FULLY_PAID","Yes","2026-02-05T14:26:49.781Z"

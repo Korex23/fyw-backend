@@ -1,0 +1,55 @@
+{
+  "name": "final-year-week-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Final Year Week payments and invitations",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed": "ts-node scripts/seed.ts",
+    "test": "jest --detectOpenHandles"
+  },
+  "keywords": [
+    "paystack",
+    "payments",
+    "invitations"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^8.0.3",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "axios": "^1.6.2",
+    "cloudinary": "^1.41.0",
+    "nodemailer": "^6.9.7",
+    "pino": "^8.17.2",
+    "pino-pretty": "^10.3.1",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "puppeteer": "^21.6.1",
+    "qrcode": "^1.5.3",
+    "crypto": "^1.0.1",
+    "json2csv": "^6.0.0-alpha.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.5",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^6.4.14",
+    "@types/qrcode": "^1.5.5",
+    "@types/cors": "^2.8.17",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "ts-jest": "^29.1.1"
+  }
+}
