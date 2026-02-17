@@ -259,6 +259,10 @@ export class AdminController {
         Phone: String(student.phone) || "N/A",
         Package: student.packageId.name,
         "Package Price": student.packageId.price,
+        "Selected Days":
+          student.selectedDays && student.selectedDays.length > 0
+            ? student.selectedDays.join(", ")
+            : "N/A",
         "Total Paid": student.totalPaid,
         Outstanding: Math.max(student.packageId.price - student.totalPaid, 0),
         "Payment Status": student.paymentStatus,

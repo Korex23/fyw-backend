@@ -7,9 +7,10 @@ export const createStudentSchema = z.object({
   body: z.object({
     matricNumber: z.string().min(5),
     fullName: z.string().min(2),
-    packageCode: z.string().length(1).optional(),
+    packageCode: z.string().length(1),
     email: z.string().email().optional(),
     phone: z.string().optional(),
+    selectedDays: z.array(z.string()).optional(),
   }),
 });
 
@@ -17,6 +18,7 @@ export const selectPackageSchema = z.object({
   body: z.object({
     matricNumber: z.string().min(5),
     packageCode: z.string().length(1),
+    selectedDays: z.array(z.string()).optional(),
   }),
 });
 
@@ -24,6 +26,7 @@ export const upgradePackageSchema = z.object({
   body: z.object({
     matricNumber: z.string().min(5),
     newPackageCode: z.string().length(1),
+    selectedDays: z.array(z.string()).optional(),
   }),
 });
 
@@ -40,7 +43,8 @@ export class StudentController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { matricNumber, fullName, packageCode, email, phone } = req.body;
+      const { matricNumber, fullName, packageCode, email, phone, selectedDays } =
+        req.body;
 
       const result = await studentService.createOrIdentifyStudent(
         matricNumber,
@@ -48,6 +52,7 @@ export class StudentController {
         packageCode,
         email,
         phone,
+        selectedDays,
       );
 
       res.status(200).json({
@@ -58,6 +63,7 @@ export class StudentController {
           package: {
             code: result.code,
             name: result.name,
+            packageType: result.packageType,
             price: result.price,
             benefits: result.benefits,
           },
@@ -103,11 +109,12 @@ export class StudentController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { matricNumber, packageCode } = req.body;
+      const { matricNumber, packageCode, selectedDays } = req.body;
 
       const student = await studentService.selectPackage(
         matricNumber,
         packageCode,
+        selectedDays,
       );
       const pkg = await packageService.getPackageById(
         student.packageId.toString(),
@@ -132,11 +139,12 @@ export class StudentController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { matricNumber, newPackageCode } = req.body;
+      const { matricNumber, newPackageCode, selectedDays } = req.body;
 
       const student = await studentService.upgradePackage(
         matricNumber,
         newPackageCode,
+        selectedDays,
       );
       const pkg = await packageService.getPackageById(
         student.packageId._id.toString(),

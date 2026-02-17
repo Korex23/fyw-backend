@@ -1,45 +1,40 @@
 import { Request, Response, NextFunction } from "express";
-import crypto from "crypto";
 import { env } from "../config/env";
 import paymentService from "../services/payment.service";
 import logger from "../utils/logger";
 import { UnauthorizedError } from "../utils/errors";
 
 export class WebhookController {
-  async handlePaystackWebhook(
+  async handleFlutterwaveWebhook(
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const signature = req.headers["x-paystack-signature"] as string;
+      const signature = req.headers["verif-hash"] as string;
 
       if (!signature) {
         throw new UnauthorizedError("Missing signature");
       }
 
-      // Verify signature
-      const hash = crypto
-        .createHmac("sha512", env.PAYSTACK_SECRET_KEY)
-        .update(JSON.stringify(req.body))
-        .digest("hex");
-
-      if (hash !== signature) {
+      if (signature !== env.FLUTTERWAVE_WEBHOOK_SECRET_HASH) {
         logger.warn("Invalid webhook signature received");
         throw new UnauthorizedError("Invalid signature");
       }
 
-      const { event, data } = req.body;
+      const event = req.body?.type || req.body?.event;
+      const data = req.body?.data || {};
+      const reference = data?.tx_ref || data?.reference;
 
-      logger.info(`Webhook received: ${event} for reference ${data.reference}`);
+      logger.info(`Webhook received: ${event} for reference ${reference}`);
 
       // Generate a unique event ID
-      const eventId = `${data.id}-${event}-${Date.now()}`;
+      const eventId = `${data?.id || reference}-${event}-${Date.now()}`;
 
       // Process webhook (idempotent)
       await paymentService.processWebhook(req.body, eventId);
 
-      // Respond immediately to Paystack
+      // Respond immediately to Flutterwave
       res.status(200).json({
         success: true,
         message: "Webhook processed",

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import paymentService from "../services/payment.service";
+import studentService from "../services/student.service";
 
 export const initializePaymentSchema = z.object({
   body: z.object({
@@ -50,11 +51,21 @@ export class PaymentController {
       const { reference } = req.query;
 
       const payment = await paymentService.verifyPayment(reference as string);
+      const student = await studentService.getStudentById(
+        payment.studentId.toString(),
+      );
+      const paymentData =
+        typeof (payment as any).toObject === "function"
+          ? (payment as any).toObject()
+          : payment;
 
       res.status(200).json({
         success: true,
         message: "Payment verified successfully",
-        data: payment,
+        data: {
+          ...paymentData,
+          matricNumber: student.matricNumber,
+        },
       });
     } catch (error) {
       next(error);

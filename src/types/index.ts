@@ -21,44 +21,42 @@ export interface AuthRequest extends Request {
   admin?: AdminPayload;
 }
 
-export interface PaystackInitializeResponse {
-  status: boolean;
+export interface FlutterwaveInitializeResponse {
+  status: string;
   message: string;
   data: {
-    authorization_url: string;
-    access_code: string;
-    reference: string;
-  };
-}
-
-export interface PaystackVerifyResponse {
-  status: boolean;
-  message: string;
-  data: {
-    id: number;
-    status: string;
-    reference: string;
-    amount: number;
-    paid_at: string;
-    metadata: {
-      studentId: string;
-      matricNumber: string;
-      packageCode: string;
-      [key: string]: any;
-    };
+    link: string;
     [key: string]: any;
   };
 }
 
-export interface PaystackWebhookEvent {
-  event: string;
+export interface FlutterwaveVerifyResponse {
+  status: string;
+  message: string;
   data: {
-    id: number;
+    id?: number;
+    tx_ref?: string;
+    flw_ref?: string;
     status: string;
-    reference: string;
     amount: number;
-    paid_at: string;
-    metadata: {
+    paid_at?: string;
+    created_at?: string;
+    reference?: string;
+    [key: string]: any;
+  };
+}
+
+export interface FlutterwaveWebhookEvent {
+  event?: string;
+  data: {
+    id?: number | string;
+    tx_ref?: string;
+    status?: string;
+    reference?: string;
+    amount?: number;
+    created_at?: string;
+    paid_at?: string;
+    meta?: {
       studentId: string;
       matricNumber: string;
       packageCode: string;

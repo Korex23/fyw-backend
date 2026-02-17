@@ -3,10 +3,10 @@ import webhookController from "../controllers/webhook.controller";
 
 const router = Router();
 
-// Paystack webhook endpoint
+// Flutterwave webhook endpoint
 router.post(
-  "/paystack",
-  webhookController.handlePaystackWebhook.bind(webhookController),
+  "/flutterwave",
+  webhookController.handleFlutterwaveWebhook.bind(webhookController),
 );
 
 export default router;

@@ -6,7 +6,7 @@ This document explains how webhook idempotency is guaranteed in the Final Year W
 
 ## Problem Statement
 
-Payment webhooks from Paystack can be delivered multiple times due to:
+Payment webhooks from Flutterwave can be delivered multiple times due to:
 
 - Network retries
 - Timeout retries
@@ -44,7 +44,7 @@ PaymentSchema.index({ reference: 1 }, { unique: true });
 
 ```typescript
 {
-  eventId: string; // Paystack event ID + timestamp
+  eventId: string; // Flutterwave event ID + timestamp
   reference: string; // Payment reference
   event: string; // Event type (charge.success)
   processedAt: Date;
@@ -154,7 +154,7 @@ student.totalPaid = newTotalPaid;
 8. Credit student account ✓
 9. Generate invites ✓
 10. Send email ✓
-11. Respond 200 OK to Paystack
+11. Respond 200 OK to Flutterwave
 ```
 
 ### Duplicate Webhook Delivery
@@ -164,7 +164,7 @@ student.totalPaid = newTotalPaid;
 2. Generate eventId: "123456-charge.success-1234567890" (same)
 3. Check WebhookEvent collection → Found! ✗
 4. Return immediately (no processing)
-5. Respond 200 OK to Paystack
+5. Respond 200 OK to Flutterwave
 ```
 
 ### Race Condition (Concurrent Webhooks)
@@ -215,12 +215,12 @@ The test:
 
 ### 1. Network Retry
 
-**Scenario:** Paystack doesn't receive 200 OK, retries webhook
+**Scenario:** Flutterwave doesn't receive 200 OK, retries webhook
 **Handling:** WebhookEvent duplicate detection catches it
 
 ### 2. Manual Resend
 
-**Scenario:** Admin manually resends webhook from Paystack dashboard
+**Scenario:** Admin manually resends webhook from Flutterwave dashboard
 **Handling:** Same eventId detected, no reprocessing
 
 ### 3. Concurrent Deliveries
@@ -248,11 +248,11 @@ async verifyPayment(reference: string): Promise<IPayment> {
 
   // If already successful, return existing payment
   if (payment.status === TransactionStatus.SUCCESS) {
-    return payment; // No API call to Paystack
+    return payment; // No API call to Flutterwave
   }
 
-  // Otherwise verify with Paystack
-  const response = await paystackClient.get(`/transaction/verify/${reference}`);
+  // Otherwise verify with Flutterwave
+  const response = await flutterwaveClient.get(`/transactions/verify_by_reference?tx_ref=${reference}`);
 
   if (data.status === 'success') {
     await this.processSuccessfulPayment(payment, data);
@@ -264,7 +264,7 @@ async verifyPayment(reference: string): Promise<IPayment> {
 
 **Benefits:**
 
-- Avoids unnecessary API calls to Paystack
+- Avoids unnecessary API calls to Flutterwave
 - Returns instantly for already-verified payments
 - Consistent behavior with webhook processing
 
@@ -313,3 +313,5 @@ The webhook idempotency implementation uses multiple layers of protection:
 3. **Payment status validation** (business logic safety)
 
 This approach ensures that no matter how many times a webhook is delivered, the payment is only processed once, providing reliable and consistent payment handling.
+
+

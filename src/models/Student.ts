@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 import { PaymentStatus } from "../types";
+import { EVENT_DAY_KEYS, EventDayKey } from "../constants/eventDays";
 
 export interface IStudent extends Document {
   fullName: string;
@@ -8,6 +9,7 @@ export interface IStudent extends Document {
   phone?: string;
   department?: string;
   packageId: Types.ObjectId;
+  selectedDays: EventDayKey[];
   totalPaid: number;
   paymentStatus: PaymentStatus;
   invites?: {
@@ -51,6 +53,11 @@ const StudentSchema = new Schema<IStudent>(
       type: Schema.Types.ObjectId,
       ref: "Package",
       required: true,
+    },
+    selectedDays: {
+      type: [String],
+      enum: EVENT_DAY_KEYS,
+      default: [],
     },
     totalPaid: {
       type: Number,

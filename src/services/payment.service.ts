@@ -1,10 +1,11 @@
+import axios from "axios";
 import Payment, { IPayment } from "../models/Payment";
 import WebhookEvent from "../models/WebhookEvent";
-import paystackClient from "../config/paystack";
+import flutterwave from "../config/flutterwave";
 import {
   TransactionStatus,
-  PaystackInitializeResponse,
-  PaystackVerifyResponse,
+  FlutterwaveInitializeResponse,
+  FlutterwaveVerifyResponse,
 } from "../types";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { generateReference } from "../utils/helpers";
@@ -16,6 +17,20 @@ import logger from "../utils/logger";
 import { env } from "../config/env";
 
 export class PaymentService {
+  private extractGatewayError(error: any): string {
+    const gatewayData = error?.response?.data;
+    if (!gatewayData) {
+      return error?.message || "Failed to initialize payment";
+    }
+    return (
+      gatewayData?.message ||
+      gatewayData?.data?.message ||
+      gatewayData?.error?.message ||
+      gatewayData?.error ||
+      "Failed to initialize payment"
+    );
+  }
+
   async initializePayment(
     studentId: string,
     amount: number,
@@ -23,15 +38,12 @@ export class PaymentService {
   ): Promise<{
     authorization_url: string;
     reference: string;
-    access_code: string;
   }> {
     const student = await studentService.getStudentByMatricNumber(studentId);
-    logger.info(student);
     const pkg = await packageService.getPackageById(
       student.packageId._id.toString(),
     );
 
-    // Validate amount
     if (amount <= 0) {
       throw new BadRequestError("Amount must be greater than 0");
     }
@@ -43,7 +55,6 @@ export class PaymentService {
 
     const reference = generateReference();
 
-    // Create pending payment record
     await Payment.create({
       studentId: student._id,
       packageIdAtTime: pkg._id,
@@ -52,37 +63,74 @@ export class PaymentService {
       status: TransactionStatus.PENDING,
     });
 
-    // Initialize Paystack transaction
-    const response = await paystackClient.post<PaystackInitializeResponse>(
-      "/transaction/initialize",
-      {
-        email,
-        amount: amount * 100, // Convert to kobo
-        reference,
-        metadata: {
-          studentId: student._id.toString(),
-          matricNumber: student.matricNumber,
-          packageCode: pkg.code,
-          packageName: pkg.name,
-          fullName: student.fullName,
-        },
-        callback_url: `${env.FRONTEND_URL}/payment/verify?reference=${reference}`,
-      },
-    );
-
-    if (!response.data.status) {
-      throw new BadRequestError("Failed to initialize payment");
+    const redirectUrl =
+      env.FLUTTERWAVE_REDIRECT_URL || `${env.FRONTEND_URL}/payment/verify`;
+    const redirectHost = new URL(redirectUrl).hostname.toLowerCase();
+    if (redirectHost === "localhost" || redirectHost === "127.0.0.1") {
+      throw new BadRequestError(
+        "FLUTTERWAVE_REDIRECT_URL must be a public URL (localhost is invalid)",
+      );
     }
 
-    logger.info(
-      `Payment initialized: ${reference} for student ${student.matricNumber}`,
-    );
+    try {
+      const { data: response } = await axios.post<FlutterwaveInitializeResponse>(
+        "https://api.flutterwave.com/v3/payments",
+        {
+          tx_ref: reference,
+          amount,
+          currency: "NGN",
+          redirect_url: redirectUrl,
+          customer: {
+            email,
+            phonenumber: student.phone || "08000000000",
+            name: student.fullName,
+          },
+          meta: {
+            studentId: student._id.toString(),
+            matricNumber: student.matricNumber,
+            packageCode: pkg.code,
+            packageName: pkg.name,
+            selectedDays: student.selectedDays || [],
+            fullName: student.fullName,
+          },
+          customizations: {
+            title: "ULES Final Year Week Payment",
+            description: `Payment for ${pkg.name}`,
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${env.FLUTTERWAVE_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
 
-    return {
-      authorization_url: response.data.data.authorization_url,
-      reference: response.data.data.reference,
-      access_code: response.data.data.access_code,
-    };
+      if (response.status !== "success" || !response.data?.link) {
+        logger.error({ response }, "Flutterwave initialize returned non-success");
+        throw new BadRequestError(
+          response.message || "Failed to initialize payment",
+        );
+      }
+
+      logger.info(
+        `Payment initialized: ${reference} for student ${student.matricNumber}`,
+      );
+
+      return {
+        authorization_url: response.data.link,
+        reference,
+      };
+    } catch (error: any) {
+      logger.error(
+        {
+          status: error?.response?.status,
+          data: error?.response?.data,
+        },
+        "Flutterwave initialize failed",
+      );
+      throw new BadRequestError(this.extractGatewayError(error));
+    }
   }
 
   async verifyPayment(reference: string): Promise<IPayment> {
@@ -92,28 +140,26 @@ export class PaymentService {
       throw new NotFoundError("Payment not found");
     }
 
-    // If already successful, return existing payment (idempotency)
     if (payment.status === TransactionStatus.SUCCESS) {
       logger.info(`Payment ${reference} already verified`);
       return payment;
     }
 
-    // Verify with Paystack
-    const response = await paystackClient.get<PaystackVerifyResponse>(
-      `/transaction/verify/${reference}`,
-    );
+    const response = await flutterwave.Transaction.verify_by_tx({
+      tx_ref: reference,
+    });
 
-    if (!response.data.status) {
+    if (response.status !== "success") {
       throw new BadRequestError("Payment verification failed");
     }
 
-    const { data } = response.data;
+    const data = response.data as FlutterwaveVerifyResponse["data"];
 
-    if (data.status === "success") {
+    if (data.status === "successful") {
       await this.processSuccessfulPayment(payment, data);
     } else {
       payment.status = TransactionStatus.FAILED;
-      payment.rawPaystackPayload = data;
+      payment.rawGatewayPayload = data;
       await payment.save();
     }
 
@@ -121,24 +167,25 @@ export class PaymentService {
   }
 
   async processWebhook(eventData: any, eventId: string): Promise<void> {
-    const { event, data } = eventData;
+    const event = eventData?.event;
+    const data = eventData?.data || {};
+    const reference = data?.tx_ref || data?.reference;
 
-    // Check if event already processed (idempotency)
-    const existingEvent = await WebhookEvent.findOne({
-      eventId,
-      reference: data.reference,
-    });
+    if (!reference) {
+      logger.warn("Webhook payload missing transaction reference");
+      return;
+    }
 
+    const existingEvent = await WebhookEvent.findOne({ eventId, reference });
     if (existingEvent) {
       logger.info(`Webhook event ${eventId} already processed`);
       return;
     }
 
-    // Record webhook event (unique constraint prevents duplicate processing)
     try {
       await WebhookEvent.create({
         eventId,
-        reference: data.reference,
+        reference,
         event,
         processedAt: new Date(),
         rawPayload: eventData,
@@ -151,19 +198,16 @@ export class PaymentService {
       throw error;
     }
 
-    // Process charge.success events
-    if (event === "charge.success") {
-      const payment = await Payment.findOne({ reference: data.reference });
+    if (event === "charge.completed" && data.status === "successful") {
+      const payment = await Payment.findOne({ reference });
 
       if (!payment) {
-        logger.warn(
-          `Payment not found for webhook reference: ${data.reference}`,
-        );
+        logger.warn(`Payment not found for webhook reference: ${reference}`);
         return;
       }
 
       if (payment.status === TransactionStatus.SUCCESS) {
-        logger.info(`Payment ${data.reference} already processed`);
+        logger.info(`Payment ${reference} already processed`);
         return;
       }
 
@@ -173,21 +217,25 @@ export class PaymentService {
 
   private async processSuccessfulPayment(
     payment: IPayment,
-    paystackData: any,
+    flutterwaveData: any,
   ): Promise<void> {
-    const amountInNaira = paystackData.amount / 100;
+    const amountInNaira = Number(flutterwaveData.amount);
 
-    // Update payment record
+    if (!Number.isFinite(amountInNaira) || amountInNaira <= 0) {
+      throw new BadRequestError("Invalid payment amount from gateway");
+    }
+
     payment.status = TransactionStatus.SUCCESS;
-    payment.paidAt = new Date(paystackData.paid_at);
-    payment.rawPaystackPayload = paystackData;
+    payment.paidAt = new Date(
+      flutterwaveData.paid_at || flutterwaveData.created_at || Date.now(),
+    );
+    payment.rawGatewayPayload = flutterwaveData;
     await payment.save();
 
     logger.info(
-      `Processing successful payment: ${payment.reference} - ₦${amountInNaira}`,
+      `Processing successful payment: ${payment.reference} - N${amountInNaira}`,
     );
 
-    // Update student payment status
     const student = await studentService.updatePaymentStatus(
       payment.studentId.toString(),
       amountInNaira,
@@ -198,19 +246,15 @@ export class PaymentService {
     );
     const outstanding = Math.max(pkg.price - student.totalPaid, 0);
 
-    // Send appropriate notification
     if (student.paymentStatus === "FULLY_PAID") {
-      // Generate invites
       const invites = await inviteService.generateInvites(student, pkg);
 
-      // Update student with invite URLs
       await studentService.updateInvites(
         student._id.toString(),
         invites.pdfUrl,
         invites.imageUrl,
       );
 
-      // Send completion email
       if (student.email) {
         await mailService.sendPaymentCompletionEmail(
           student.email,
@@ -220,19 +264,16 @@ export class PaymentService {
           invites.imageUrl,
         );
       }
-    } else {
-      // Send partial payment notification
-      if (student.email) {
-        await mailService.sendPartialPaymentEmail(
-          student.email,
-          student.fullName,
-          amountInNaira,
-          student.totalPaid,
-          outstanding,
-          pkg.name,
-          pkg.price,
-        );
-      }
+    } else if (student.email) {
+      await mailService.sendPartialPaymentEmail(
+        student.email,
+        student.fullName,
+        amountInNaira,
+        student.totalPaid,
+        outstanding,
+        pkg.name,
+        pkg.price,
+      );
     }
   }
 

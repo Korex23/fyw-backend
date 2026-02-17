@@ -5,6 +5,7 @@ import { IStudent } from "../models/Student";
 import { IPackage } from "../models/Package";
 import { InviteData } from "../types";
 import logger from "../utils/logger";
+import { EVENT_DAY_KEYS, EVENT_DAY_LABEL_MAP } from "../constants/eventDays";
 // import fs from "fs/promises";
 // import path from "path";
 
@@ -14,6 +15,18 @@ export class InviteService {
     pkg: IPackage,
     qrDataUrl: string,
   ): Promise<string> {
+    const selectedDayKeys =
+      pkg.packageType === "FULL"
+        ? [...EVENT_DAY_KEYS]
+        : student.selectedDays || [];
+    const selectedDayLabels = selectedDayKeys.map(
+      (day) => EVENT_DAY_LABEL_MAP[day] || day,
+    );
+    const renderedDayLabels =
+      selectedDayLabels.length > 0
+        ? selectedDayLabels
+        : ["No event days selected"];
+
     return `
 <!doctype html>
 <html lang="en">
@@ -440,6 +453,23 @@ export class InviteService {
                   )
                   .join("")}
               </div>
+
+              <div class="benefits" style="margin-top: 16px">
+                <div class="benefit">
+                  <span class="check">âœ“</span>
+                  <span><strong>Access Days:</strong></span>
+                </div>
+                ${renderedDayLabels
+                  .map(
+                    (day) => `
+                <div class="benefit">
+                  <span class="check">âœ“</span>
+                  <span>${day}</span>
+                </div>
+                `,
+                  )
+                  .join("")}
+              </div>
             </div>
           </div>
 
@@ -482,12 +512,20 @@ export class InviteService {
 
   async generateInvites(student: IStudent, pkg: IPackage): Promise<InviteData> {
     logger.info(`Generating invites for student ${student.matricNumber}`);
+    const selectedDayKeys =
+      pkg.packageType === "FULL"
+        ? [...EVENT_DAY_KEYS]
+        : student.selectedDays || [];
+    const selectedDayLabels = selectedDayKeys.map(
+      (day) => EVENT_DAY_LABEL_MAP[day] || day,
+    );
 
     // Generate QR code data URL
     const qrData = JSON.stringify({
       matricNumber: student.matricNumber,
       fullName: student.fullName,
       package: pkg.code,
+      selectedDays: selectedDayLabels,
       generatedAt: new Date().toISOString(),
     });
 

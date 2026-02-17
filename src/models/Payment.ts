@@ -8,7 +8,7 @@ export interface IPayment extends Document {
   reference: string;
   status: TransactionStatus;
   paidAt?: Date;
-  rawPaystackPayload?: any;
+  rawGatewayPayload?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,7 +43,7 @@ const PaymentSchema = new Schema<IPayment>(
     paidAt: {
       type: Date,
     },
-    rawPaystackPayload: {
+    rawGatewayPayload: {
       type: Schema.Types.Mixed,
     },
   },

@@ -6,6 +6,7 @@ export class PackageService {
   async createOrUpdatePackage(
     code: string,
     name: string,
+    packageType: "FULL" | "TWO_DAY",
     price: number,
     benefits: string[],
   ): Promise<IPackage> {
@@ -13,12 +14,13 @@ export class PackageService {
 
     if (existingPackage) {
       existingPackage.name = name;
+      existingPackage.packageType = packageType;
       existingPackage.price = price;
       existingPackage.benefits = benefits;
       return await existingPackage.save();
     }
 
-    return await Package.create({ code, name, price, benefits });
+    return await Package.create({ code, name, packageType, price, benefits });
   }
 
   async getAllPackages(): Promise<IPackage[]> {

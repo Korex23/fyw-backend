@@ -8,16 +8,11 @@ export const formatCurrency = (amount: number): string => {
   return `₦${(amount / 100).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
 };
 
-export const verifyPaystackSignature = (
-  payload: string,
+export const verifyFlutterwaveSignature = (
   signature: string,
-  secret: string,
+  secretHash: string,
 ): boolean => {
-  const hash = crypto
-    .createHmac("sha512", secret)
-    .update(payload)
-    .digest("hex");
-  return hash === signature;
+  return signature === secretHash;
 };
 
 export const calculateOutstanding = (
