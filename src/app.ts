@@ -36,7 +36,7 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       logger.info(`Server running on port ${PORT} in ${env.NODE_ENV} mode`);
       logger.info(`API available at http://localhost:${PORT}/api`);
     });
