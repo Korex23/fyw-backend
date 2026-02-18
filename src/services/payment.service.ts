@@ -250,18 +250,13 @@ export class PaymentService {
       try {
         const invites = await inviteService.generateInvites(student, pkg);
 
-        await studentService.updateInvites(
-          student._id.toString(),
-          invites.pdfUrl,
-          invites.imageUrl,
-        );
+        await studentService.updateInvites(student._id.toString(), invites.imageUrl);
 
         if (student.email) {
           await mailService.sendPaymentCompletionEmail(
             student.email,
             student.fullName,
             pkg.name,
-            invites.pdfUrl,
             invites.imageUrl,
           );
         }

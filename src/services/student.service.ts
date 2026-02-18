@@ -216,13 +216,11 @@ export class StudentService {
 
   async updateInvites(
     studentId: string,
-    pdfUrl: string,
     imageUrl: string,
   ): Promise<IStudent> {
     const student = await this.getStudentById(studentId);
 
     student.invites = {
-      pdfUrl,
       imageUrl,
       generatedAt: new Date(),
     };

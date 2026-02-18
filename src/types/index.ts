@@ -67,7 +67,6 @@ export interface FlutterwaveWebhookEvent {
 }
 
 export interface InviteData {
-  pdfUrl: string;
   imageUrl: string;
   generatedAt: Date;
 }

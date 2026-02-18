@@ -333,7 +333,6 @@ export class MailService {
     to: string,
     fullName: string,
     packageName: string,
-    pdfUrl: string,
     imageUrl: string,
   ): Promise<void> {
     const mailOptions = {
@@ -600,14 +599,11 @@ export class MailService {
 
           <div class="highlight">
             <p class="highlightTitle">Invitation Ready</p>
-            <p class="highlightText">Download your PDF or image invite instantly.</p>
+            <p class="highlightText">Download your invite instantly.</p>
           </div>
 
           <div class="buttons">
-            <a class="btn btnPrimary" href="${pdfUrl}" target="_blank" rel="noreferrer">
-              📄 Download PDF
-            </a>
-            <a class="btn btnSecondary" href="${imageUrl}" target="_blank" rel="noreferrer">
+            <a class="btn btnPrimary" href="${imageUrl}" target="_blank" rel="noreferrer">
               🖼️ Download Image
             </a>
           </div>
@@ -662,14 +658,12 @@ export class MailService {
     to: string,
     fullName: string,
     packageName: string,
-    pdfUrl: string,
     imageUrl: string,
   ): Promise<void> {
     await this.sendPaymentCompletionEmail(
       to,
       fullName,
       packageName,
-      pdfUrl,
       imageUrl,
     );
   }

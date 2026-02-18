@@ -173,7 +173,7 @@ export class AdminController {
 
       const student = await studentService.getStudentById(id);
 
-      if (!student.invites?.pdfUrl || !student.invites?.imageUrl) {
+      if (!student.invites?.imageUrl) {
         throw new BadRequestError(
           "No invites found. Please regenerate invites first.",
         );
@@ -191,7 +191,6 @@ export class AdminController {
         student.email,
         student.fullName,
         pkg.name,
-        student.invites.pdfUrl,
         student.invites.imageUrl,
       );
 
@@ -221,7 +220,7 @@ export class AdminController {
       const invites = await inviteService.generateInvites(student, pkg);
 
       // Update student
-      await studentService.updateInvites(id, invites.pdfUrl, invites.imageUrl);
+      await studentService.updateInvites(id, invites.imageUrl);
 
       // Send email if email exists
       if (student.email) {
@@ -229,7 +228,6 @@ export class AdminController {
           student.email,
           student.fullName,
           pkg.name,
-          invites.pdfUrl,
           invites.imageUrl,
         );
       }
@@ -266,7 +264,7 @@ export class AdminController {
         "Total Paid": student.totalPaid,
         Outstanding: Math.max(student.packageId.price - student.totalPaid, 0),
         "Payment Status": student.paymentStatus,
-        "Has Invite": student.invites?.pdfUrl ? "Yes" : "No",
+        "Has Invite": student.invites?.imageUrl ? "Yes" : "No",
         "Created At": new Date(student.createdAt).toISOString(),
       }));
 

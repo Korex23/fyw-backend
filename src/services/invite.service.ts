@@ -588,13 +588,6 @@ export class InviteService {
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
-    // Generate PDF
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
-    });
-
     // Generate PNG image
     await page.setViewport({ width: 800, height: 1200 });
     const imageBuffer = await page.screenshot({
@@ -605,39 +598,26 @@ export class InviteService {
     await browser.close();
 
     // Upload to Cloudinary
-    const [pdfUrl, imageUrl] = await Promise.all([
-      this.uploadToCloudinary(
-        pdfBuffer,
-        `invite-${student.matricNumber}.pdf`,
-        "raw",
-      ),
-      this.uploadToCloudinary(
-        imageBuffer,
-        `invite-${student.matricNumber}.png`,
-        "image",
-      ),
-    ]);
+    const imageUrl = await this.uploadToCloudinary(
+      imageBuffer,
+      `invite-${student.matricNumber}.png`,
+    );
 
     logger.info(`Invites generated successfully for ${student.matricNumber}`);
 
     return {
-      pdfUrl,
       imageUrl,
       generatedAt: new Date(),
     };
   }
 
-  private async uploadToCloudinary(
-    buffer: Buffer,
-    filename: string,
-    resourceType: "image" | "raw",
-  ): Promise<string> {
+  private async uploadToCloudinary(buffer: Buffer, filename: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: "final-year-week/invites",
           public_id: filename.replace(/\.[^/.]+$/, ""),
-          resource_type: resourceType,
+          resource_type: "image",
         },
         (error, result) => {
           if (error) {

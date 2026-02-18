@@ -11,7 +11,7 @@ Backend API for Final Year Week registration, package selection, payments, invit
 - Two-day package day selection (`MONDAY` to `FRIDAY`, exactly 2)
 - Flutterwave v3 payment initialization and verification
 - Upgrade flow with payment preservation (`T -> F`)
-- Automatic invite generation (PDF + image) with selected days included
+- Automatic invite generation (image) with selected days included
 - Webhook processing with signature check and idempotency
 - Admin endpoints for metrics, student management, invite resend/regeneration, CSV export
 
@@ -237,7 +237,7 @@ Payment statuses:
 
 When payment becomes fully paid:
 
-- PDF and image invite are generated
+- Image invite is generated
 - Invite includes:
   - student details
   - package details

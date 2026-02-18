@@ -13,7 +13,6 @@ export interface IStudent extends Document {
   totalPaid: number;
   paymentStatus: PaymentStatus;
   invites?: {
-    pdfUrl?: string;
     imageUrl?: string;
     generatedAt?: Date;
   };
@@ -70,7 +69,6 @@ const StudentSchema = new Schema<IStudent>(
       default: PaymentStatus.NOT_PAID,
     },
     invites: {
-      pdfUrl: String,
       imageUrl: String,
       generatedAt: Date,
     },
