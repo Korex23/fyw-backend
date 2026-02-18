@@ -34,7 +34,6 @@
     "nodemailer": "^6.9.7",
     "pino": "^8.17.2",
     "pino-pretty": "^10.3.1",
-    "puppeteer": "^21.6.1",
     "qrcode": "^1.5.3",
     "zod": "^3.22.4"
   },

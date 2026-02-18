@@ -1,562 +1,113 @@
-import puppeteer from "puppeteer";
 import QRCode from "qrcode";
 import cloudinary from "../config/cloudinary";
 import { IStudent } from "../models/Student";
 import { IPackage } from "../models/Package";
 import { InviteData } from "../types";
 import logger from "../utils/logger";
-import { env } from "../config/env";
-import { existsSync } from "fs";
 import { EVENT_DAY_KEYS, EVENT_DAY_LABEL_MAP } from "../constants/eventDays";
-// import fs from "fs/promises";
-// import path from "path";
 
 export class InviteService {
-  private async launchBrowser() {
-    const sharedArgs = [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-zygote",
-    ];
-
-    const candidatePaths = [
-      env.PUPPETEER_EXECUTABLE_PATH,
-      "/usr/bin/google-chrome-stable",
-      "/usr/bin/google-chrome",
-      "/usr/bin/chromium-browser",
-      "/usr/bin/chromium",
-    ].filter((path): path is string => Boolean(path));
-
-    for (const executablePath of candidatePaths) {
-      if (!existsSync(executablePath)) {
-        continue;
-      }
-
-      try {
-        logger.info(`Launching Chromium from: ${executablePath}`);
-        return await puppeteer.launch({
-          headless: true,
-          executablePath,
-          args: sharedArgs,
-        });
-      } catch (error) {
-        logger.warn(
-          { executablePath, error },
-          "Failed to launch Chromium from candidate path",
-        );
-      }
-    }
-
-    return await puppeteer.launch({
-      headless: true,
-      args: sharedArgs,
-    });
+  private escapeXml(value: string): string {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   }
 
-  private async generateInviteHTML(
+  private buildInviteSvg(
     student: IStudent,
     pkg: IPackage,
     qrDataUrl: string,
-  ): Promise<string> {
-    const selectedDayKeys =
-      pkg.packageType === "FULL"
-        ? [...EVENT_DAY_KEYS]
-        : student.selectedDays || [];
-    const selectedDayLabels = selectedDayKeys.map(
-      (day) => EVENT_DAY_LABEL_MAP[day] || day,
-    );
-    const renderedDayLabels =
-      selectedDayLabels.length > 0
-        ? selectedDayLabels
-        : ["No event days selected"];
+    selectedDayLabels: string[],
+  ): string {
+    const benefits = (pkg.benefits || []).slice(0, 6);
+    const days = selectedDayLabels.length
+      ? selectedDayLabels
+      : ["No event days selected"];
 
-    return `
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ULES FYW PAY - Invitation</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      :root {
-        --primary: #1b5e20;
-        --secondary: #8b0000;
-        --bg: #f9fafb;
-        --card: #ffffff;
-        --border: #e5e7eb;
-        --slate: #0f172a;
-        --muted: #64748b;
-      }
+    const benefitRows = benefits
+      .map(
+        (benefit, index) => `
+    <text x="70" y="${352 + index * 34}" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#1e293b">
+      • ${this.escapeXml(benefit)}
+    </text>`,
+      )
+      .join("");
 
-      body {
-        font-family: Arial, sans-serif;
-        background: var(--bg);
-        padding: 36px;
-        color: var(--slate);
-      }
+    const dayRows = days
+      .slice(0, 6)
+      .map(
+        (day, index) => `
+    <text x="70" y="${620 + index * 34}" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#334155">
+      • ${this.escapeXml(day)}
+    </text>`,
+      )
+      .join("");
 
-      .page {
-        max-width: 920px;
-        margin: 0 auto;
-        position: relative;
-      }
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="900" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
 
-      /* subtle background blobs (like your pages) */
-      .blob {
-        position: absolute;
-        border-radius: 999px;
-        filter: blur(90px);
-        opacity: 0.55;
-        z-index: 0;
-      }
-      .blob.green {
-        width: 420px;
-        height: 420px;
-        left: -80px;
-        top: -80px;
-        background: rgba(27, 94, 32, 0.1);
-      }
-      .blob.red {
-        width: 360px;
-        height: 360px;
-        right: -70px;
-        bottom: -60px;
-        background: rgba(139, 0, 0, 0.1);
-      }
+  <rect width="1200" height="900" fill="url(#bg)"/>
+  <rect x="30" y="30" width="1140" height="840" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
 
-      .invite {
-        position: relative;
-        z-index: 1;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 22px;
-        overflow: hidden;
-        box-shadow: 0 18px 55px rgba(15, 23, 42, 0.12);
-      }
+  <rect x="30" y="30" width="1140" height="110" rx="28" fill="#f8fafc"/>
+  <text x="70" y="95" font-family="Arial, sans-serif" font-size="36" font-weight="900" fill="#0f172a">
+    ULES FYW PAY
+  </text>
+  <text x="1130" y="95" text-anchor="end" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#1b5e20">
+    OFFICIAL INVITATION
+  </text>
 
-      .topbar {
-        padding: 18px 26px;
-        background: rgba(255, 255, 255, 0.92);
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
+  <text x="70" y="200" font-family="Arial, sans-serif" font-size="54" font-weight="900" fill="#0f172a">
+    Final Year Week
+  </text>
+  <text x="70" y="238" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#64748b">
+    University of Lagos Engineering Society
+  </text>
 
-      .brand {
-        font-size: 18px;
-        font-weight: 900;
-        letter-spacing: -0.02em;
-        color: #1e293b;
-      }
-      .brand .g {
-        color: var(--primary);
-      }
-      .brand .r {
-        color: var(--secondary);
-      }
+  <text x="70" y="298" font-family="Arial, sans-serif" font-size="26" font-weight="900" fill="#1e293b">
+    ${this.escapeXml(student.fullName)}
+  </text>
+  <text x="70" y="326" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#475569">
+    Matric No: ${this.escapeXml(student.matricNumber)}
+  </text>
 
-      .badge {
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: rgba(27, 94, 32, 0.08);
-        border: 1px solid rgba(27, 94, 32, 0.18);
-        color: var(--primary);
-        white-space: nowrap;
-      }
+  <text x="70" y="500" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="#1b5e20">
+    PACKAGE: ${this.escapeXml(pkg.name)}
+  </text>
+  ${benefitRows}
 
-      .hero {
-        padding: 28px 26px 22px;
-        background:
-          radial-gradient(
-            circle at 12% 25%,
-            rgba(27, 94, 32, 0.1) 0%,
-            rgba(27, 94, 32, 0) 55%
-          ),
-          radial-gradient(
-            circle at 88% 35%,
-            rgba(139, 0, 0, 0.1) 0%,
-            rgba(139, 0, 0, 0) 55%
-          ),
-          #ffffff;
-        border-bottom: 1px solid var(--border);
-        text-align: center;
-      }
+  <text x="70" y="580" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="#8b0000">
+    ACCESS DAYS
+  </text>
+  ${dayRows}
 
-      .hero h1 {
-        font-size: 40px;
-        font-weight: 900;
-        letter-spacing: -0.03em;
-        margin-bottom: 6px;
-        color: var(--slate);
-        text-transform: uppercase;
-      }
+  <rect x="860" y="250" width="270" height="320" rx="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <image x="895" y="285" width="200" height="200" href="${this.escapeXml(qrDataUrl)}"/>
+  <text x="995" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#64748b">
+    SCAN TO VERIFY
+  </text>
 
-      .hero p {
-        font-size: 14px;
-        color: var(--muted);
-        font-weight: 700;
-        letter-spacing: 0.02em;
-      }
-
-      .content {
-        padding: 26px;
-        display: grid;
-        grid-template-columns: 1.25fr 0.75fr;
-        gap: 18px;
-      }
-
-      .panel {
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background: #f8fafc;
-        padding: 18px;
-      }
-
-      .panelTitle {
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: #94a3b8;
-        margin-bottom: 12px;
-      }
-
-      .studentName {
-        font-size: 26px;
-        font-weight: 900;
-        letter-spacing: -0.02em;
-        color: var(--slate);
-        margin-bottom: 6px;
-      }
-
-      .studentMeta {
-        display: inline-block;
-        font-size: 13px;
-        font-weight: 800;
-        color: #334155;
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        padding: 8px 10px;
-        border-radius: 12px;
-      }
-
-      .pkgCard {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 14px;
-        margin-top: 14px;
-      }
-
-      .pkgName {
-        font-size: 18px;
-        font-weight: 900;
-        color: var(--slate);
-        margin-bottom: 8px;
-      }
-
-      .pkgPill {
-        display: inline-block;
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        padding: 7px 10px;
-        border-radius: 999px;
-        background: rgba(139, 0, 0, 0.06);
-        border: 1px solid rgba(139, 0, 0, 0.18);
-        color: var(--secondary);
-        margin-bottom: 10px;
-      }
-
-      .benefits {
-        margin-top: 8px;
-      }
-
-      .benefit {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        padding: 8px 0;
-        border-top: 1px solid #eef2f7;
-        font-size: 13px;
-        font-weight: 700;
-        color: #334155;
-      }
-      .benefit:first-child {
-        border-top: none;
-        padding-top: 0;
-      }
-      .check {
-        width: 18px;
-        height: 18px;
-        border-radius: 6px;
-        background: rgba(27, 94, 32, 0.12);
-        border: 1px solid rgba(27, 94, 32, 0.22);
-        color: var(--primary);
-        font-weight: 900;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1;
-        margin-top: 1px;
-        flex: 0 0 auto;
-      }
-
-      .qrBox {
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background: #ffffff;
-        padding: 18px;
-        text-align: center;
-      }
-
-      .qrImg {
-        width: 220px;
-        height: 220px;
-        border-radius: 16px;
-        border: 1px solid #e2e8f0;
-        background: #f8fafc;
-        box-shadow: 0 16px 34px -22px rgba(0, 0, 0, 0.35);
-        object-fit: contain;
-      }
-
-      .qrHint {
-        margin-top: 10px;
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: #94a3b8;
-      }
-
-      .verifyId {
-        margin-top: 10px;
-        font-size: 12px;
-        font-weight: 800;
-        color: #334155;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        display: inline-block;
-        padding: 8px 10px;
-        border-radius: 12px;
-        word-break: break-word;
-        max-width: 100%;
-      }
-
-      .footer {
-        padding: 18px 26px;
-        border-top: 1px solid var(--border);
-        background: #ffffff;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-
-      .footText {
-        font-size: 12px;
-        font-weight: 700;
-        color: #94a3b8;
-        line-height: 1.6;
-      }
-
-      .eventPill {
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: rgba(27, 94, 32, 0.06);
-        border: 1px solid rgba(27, 94, 32, 0.16);
-        color: rgba(27, 94, 32, 0.95);
-        white-space: nowrap;
-      }
-
-      /* Keep it nice if rendered smaller */
-      @media print, (max-width: 860px) {
-        .content {
-          grid-template-columns: 1fr;
-        }
-        .hero h1 {
-          font-size: 34px;
-        }
-        .qrImg {
-          width: 200px;
-          height: 200px;
-        }
-      }
-
-      /* Ticket tear line */
-      .tearWrap {
-        position: relative;
-        display: grid;
-        grid-template-columns: 1fr 24px 0.9fr;
-        gap: 0;
-      }
-
-      .tearLine {
-        position: relative;
-        width: 24px;
-        display: flex;
-        justify-content: center;
-      }
-
-      .tearLine::before {
-        content: "";
-        position: absolute;
-        top: 20px;
-        bottom: 20px;
-        width: 0;
-        border-left: 2px dashed #cbd5e1;
-      }
-
-      /* circular cut notches */
-      .notch {
-        position: absolute;
-        width: 18px;
-        height: 18px;
-        background: var(--bg);
-        border-radius: 50%;
-        left: 50%;
-        transform: translateX(-50%);
-        border: 1px solid var(--border);
-      }
-
-      .notch.top {
-        top: -9px;
-      }
-
-      .notch.bottom {
-        bottom: -9px;
-      }
-
-      /* stack on small screens */
-      @media (max-width: 860px) {
-        .tearWrap {
-          grid-template-columns: 1fr;
-        }
-        .tearLine {
-          display: none;
-        }
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="page">
-      <div class="blob green"></div>
-      <div class="blob red"></div>
-
-      <div class="invite">
-        <div class="topbar">
-          <div class="brand">
-            ULES <span class="g">FYW</span> <span class="r">PAY</span>
-          </div>
-          <div class="badge">Official Invitation</div>
-        </div>
-
-        <div class="hero">
-          <h1>Final Year Week</h1>
-          <p>University of Lagos Engineering Society • Invitation Pass</p>
-        </div>
-
-        <div class="content tearWrap">
-          <!-- Left -->
-          <div class="panel">
-            <div class="panelTitle">Student Details</div>
-            <div class="studentName">${student.fullName}</div>
-            <div class="studentMeta">Matric No: ${student.matricNumber}</div>
-
-            <div class="pkgCard">
-              <div class="pkgPill">Selected Package</div>
-              <div class="pkgName">${pkg.name}</div>
-
-              <div class="benefits">
-                ${pkg.benefits
-                  .map(
-                    (benefit) => `
-                <div class="benefit">
-                  <span class="check">✓</span>
-                  <span>${benefit}</span>
-                </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-
-              <div class="benefits" style="margin-top: 16px">
-                <div class="benefit">
-                  <span class="check">âœ“</span>
-                  <span><strong>Access Days:</strong></span>
-                </div>
-                ${renderedDayLabels
-                  .map(
-                    (day) => `
-                <div class="benefit">
-                  <span class="check">âœ“</span>
-                  <span>${day}</span>
-                </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-            </div>
-          </div>
-
-          <!-- Tear line -->
-          <div class="tearLine">
-            <span class="notch top"></span>
-            <span class="notch bottom"></span>
-          </div>
-
-          <!-- Right -->
-          <div class="qrBox">
-            <div class="panelTitle">Verification</div>
-            <img src="${qrDataUrl}" alt="QR Code" class="qrImg" />
-            <div class="qrHint">Scan to verify</div>
-            <div class="verifyId">ID: ${student.matricNumber}</div>
-          </div>
-        </div>
-
-        <div class="footer">
-          <div class="footText">
-            Generated on ${new Date().toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-            <br />
-            <span style="color: #1b5e20; font-weight: 900">ULES</span> • Final
-            Year Week Planning Committee
-          </div>
-
-          <div class="eventPill">Event Date: To Be Announced</div>
-        </div>
-      </div>
-    </div>
-  </body>
-</html>
-
-`;
+  <text x="70" y="830" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#64748b">
+    Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+  </text>
+  <text x="1130" y="830" text-anchor="end" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#1b5e20">
+    Final Year Week Planning Committee
+  </text>
+</svg>`;
   }
 
   async generateInvites(student: IStudent, pkg: IPackage): Promise<InviteData> {
-    logger.info(`Generating invites for student ${student.matricNumber}`);
+    logger.info(`Generating invite for student ${student.matricNumber}`);
+
     const selectedDayKeys =
       pkg.packageType === "FULL"
         ? [...EVENT_DAY_KEYS]
@@ -565,7 +116,6 @@ export class InviteService {
       (day) => EVENT_DAY_LABEL_MAP[day] || day,
     );
 
-    // Generate QR code data URL
     const qrData = JSON.stringify({
       matricNumber: student.matricNumber,
       fullName: student.fullName,
@@ -579,31 +129,20 @@ export class InviteService {
       margin: 1,
     });
 
-    // Generate HTML content
-    const htmlContent = await this.generateInviteHTML(student, pkg, qrDataUrl);
+    const inviteSvg = this.buildInviteSvg(
+      student,
+      pkg,
+      qrDataUrl,
+      selectedDayLabels,
+    );
+    const inviteBuffer = Buffer.from(inviteSvg, "utf-8");
 
-    // Launch puppeteer
-    const browser = await this.launchBrowser();
-
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-
-    // Generate PNG image
-    await page.setViewport({ width: 800, height: 1200 });
-    const imageBuffer = await page.screenshot({
-      fullPage: true,
-      type: "png",
-    });
-
-    await browser.close();
-
-    // Upload to Cloudinary
     const imageUrl = await this.uploadToCloudinary(
-      imageBuffer,
-      `invite-${student.matricNumber}.png`,
+      inviteBuffer,
+      `invite-${student.matricNumber}.svg`,
     );
 
-    logger.info(`Invites generated successfully for ${student.matricNumber}`);
+    logger.info(`Invite generated successfully for ${student.matricNumber}`);
 
     return {
       imageUrl,
@@ -611,21 +150,25 @@ export class InviteService {
     };
   }
 
-  private async uploadToCloudinary(buffer: Buffer, filename: string): Promise<string> {
+  private async uploadToCloudinary(
+    buffer: Buffer,
+    filename: string,
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: "final-year-week/invites",
           public_id: filename.replace(/\.[^/.]+$/, ""),
           resource_type: "image",
+          format: "svg",
         },
         (error, result) => {
           if (error) {
             logger.error("Cloudinary upload error:", error);
             reject(error);
-          } else {
-            resolve(result!.secure_url);
+            return;
           }
+          resolve(result!.secure_url);
         },
       );
 
