@@ -5,11 +5,56 @@ import { IStudent } from "../models/Student";
 import { IPackage } from "../models/Package";
 import { InviteData } from "../types";
 import logger from "../utils/logger";
+import { env } from "../config/env";
+import { existsSync } from "fs";
 import { EVENT_DAY_KEYS, EVENT_DAY_LABEL_MAP } from "../constants/eventDays";
 // import fs from "fs/promises";
 // import path from "path";
 
 export class InviteService {
+  private async launchBrowser() {
+    const sharedArgs = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-zygote",
+    ];
+
+    const candidatePaths = [
+      env.PUPPETEER_EXECUTABLE_PATH,
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/google-chrome",
+      "/usr/bin/chromium-browser",
+      "/usr/bin/chromium",
+    ].filter((path): path is string => Boolean(path));
+
+    for (const executablePath of candidatePaths) {
+      if (!existsSync(executablePath)) {
+        continue;
+      }
+
+      try {
+        logger.info(`Launching Chromium from: ${executablePath}`);
+        return await puppeteer.launch({
+          headless: true,
+          executablePath,
+          args: sharedArgs,
+        });
+      } catch (error) {
+        logger.warn(
+          { executablePath, error },
+          "Failed to launch Chromium from candidate path",
+        );
+      }
+    }
+
+    return await puppeteer.launch({
+      headless: true,
+      args: sharedArgs,
+    });
+  }
+
   private async generateInviteHTML(
     student: IStudent,
     pkg: IPackage,
@@ -538,10 +583,7 @@ export class InviteService {
     const htmlContent = await this.generateInviteHTML(student, pkg, qrDataUrl);
 
     // Launch puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    const browser = await this.launchBrowser();
 
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: "networkidle0" });

@@ -247,33 +247,47 @@ export class PaymentService {
     const outstanding = Math.max(pkg.price - student.totalPaid, 0);
 
     if (student.paymentStatus === "FULLY_PAID") {
-      const invites = await inviteService.generateInvites(student, pkg);
+      try {
+        const invites = await inviteService.generateInvites(student, pkg);
 
-      await studentService.updateInvites(
-        student._id.toString(),
-        invites.pdfUrl,
-        invites.imageUrl,
-      );
-
-      if (student.email) {
-        await mailService.sendPaymentCompletionEmail(
-          student.email,
-          student.fullName,
-          pkg.name,
+        await studentService.updateInvites(
+          student._id.toString(),
           invites.pdfUrl,
           invites.imageUrl,
         );
+
+        if (student.email) {
+          await mailService.sendPaymentCompletionEmail(
+            student.email,
+            student.fullName,
+            pkg.name,
+            invites.pdfUrl,
+            invites.imageUrl,
+          );
+        }
+      } catch (error) {
+        logger.error(
+          { studentId: student._id.toString(), error },
+          "Payment succeeded but invite generation/email failed",
+        );
       }
     } else if (student.email) {
-      await mailService.sendPartialPaymentEmail(
-        student.email,
-        student.fullName,
-        amountInNaira,
-        student.totalPaid,
-        outstanding,
-        pkg.name,
-        pkg.price,
-      );
+      try {
+        await mailService.sendPartialPaymentEmail(
+          student.email,
+          student.fullName,
+          amountInNaira,
+          student.totalPaid,
+          outstanding,
+          pkg.name,
+          pkg.price,
+        );
+      } catch (error) {
+        logger.error(
+          { studentId: student._id.toString(), error },
+          "Payment succeeded but partial-payment email failed",
+        );
+      }
     }
   }
 

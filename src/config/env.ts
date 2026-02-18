@@ -18,6 +18,7 @@ const envSchema = z.object({
   FLUTTERWAVE_ENCRYPTION_KEY: z.string().optional(),
   FLUTTERWAVE_REDIRECT_URL: z.string().url().optional(),
   FLUTTERWAVE_WEBHOOK_SECRET_HASH: z.string(),
+  PUPPETEER_EXECUTABLE_PATH: z.string().optional(),
   CLOUDINARY_CLOUD_NAME: z.string(),
   CLOUDINARY_API_KEY: z.string(),
   CLOUDINARY_API_SECRET: z.string(),
