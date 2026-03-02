@@ -7,6 +7,7 @@ export const createStudentSchema = z.object({
   body: z.object({
     matricNumber: z.string().min(5),
     fullName: z.string().min(2),
+    gender: z.enum(["male", "female"]),
     packageCode: z.string().length(1),
     email: z.string().email().optional(),
     phone: z.string().optional(),
@@ -43,7 +44,15 @@ export class StudentController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const { matricNumber, fullName, packageCode, email, phone, selectedDays } =
+      const {
+        matricNumber,
+        fullName,
+        gender,
+        packageCode,
+        email,
+        phone,
+        selectedDays,
+      } =
         req.body;
 
       const result = await studentService.createOrIdentifyStudent(
@@ -53,6 +62,7 @@ export class StudentController {
         email,
         phone,
         selectedDays,
+        gender,
       );
 
       res.status(200).json({

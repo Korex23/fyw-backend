@@ -29,13 +29,43 @@ export class StudentService {
   }
 
   private resolveSelectedDaysForPackage(
-    packageType: "FULL" | "TWO_DAY",
+    packageType: "FULL" | "TWO_DAY" | "CORPORATE_OWAMBE" | "CORPORATE_PLUS",
     selectedDays?: string[],
   ): EventDayKey[] {
     if (packageType === "FULL") {
       return [...EVENT_DAY_KEYS];
     }
 
+    if (packageType === "CORPORATE_OWAMBE") {
+      // Fixed days: Monday (Corporate Day) + Friday (Owambe) — no selection needed
+      return ["MONDAY", "FRIDAY"];
+    }
+
+    if (packageType === "CORPORATE_PLUS") {
+      // Monday is always included; student picks exactly 1 day from Tue/Wed/Thu
+      const extra = Array.from(
+        new Set((selectedDays || []).map((d) => d.toUpperCase())),
+      ) as EventDayKey[];
+
+      const filtered = extra.filter((d) => d !== "MONDAY" && d !== "FRIDAY");
+
+      if (filtered.length !== 1) {
+        throw new BadRequestError(
+          "Corporate Plus package requires exactly 1 additional day (Tuesday, Wednesday, or Thursday)",
+        );
+      }
+
+      const ALLOWED: EventDayKey[] = ["TUESDAY", "WEDNESDAY", "THURSDAY"];
+      if (!ALLOWED.includes(filtered[0])) {
+        throw new BadRequestError(
+          "Corporate Plus package: additional day must be Tuesday, Wednesday, or Thursday",
+        );
+      }
+
+      return ["MONDAY", filtered[0]];
+    }
+
+    // TWO_DAY (legacy): any 2 days
     return this.normalizeAndValidateDays(selectedDays, 2);
   }
 
@@ -46,6 +76,7 @@ export class StudentService {
     email?: string,
     phone?: string,
     selectedDays?: string[],
+    gender?: "male" | "female",
   ): Promise<IPackage & { student: IStudent }> {
     const pkg = await packageService.getPackageByCode(packageCode);
     const resolvedDays = this.resolveSelectedDaysForPackage(
@@ -59,6 +90,7 @@ export class StudentService {
 
     if (student) {
       if (fullName) student.fullName = fullName;
+      if (gender) student.gender = gender;
       if (email) student.email = email;
       if (phone) student.phone = phone;
       if (selectedDays && student.packageId.toString() === pkg._id.toString()) {
@@ -69,6 +101,7 @@ export class StudentService {
       student = await Student.create({
         fullName,
         matricNumber: matricNumber.toUpperCase(),
+        gender,
         email,
         phone,
         packageId: pkg._id,

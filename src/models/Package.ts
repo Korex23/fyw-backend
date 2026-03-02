@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IPackage extends Document {
   code: string;
   name: string;
-  packageType: "FULL" | "TWO_DAY";
+  packageType: "FULL" | "TWO_DAY" | "CORPORATE_OWAMBE" | "CORPORATE_PLUS";
   price: number;
   benefits: string[];
   createdAt: Date;
@@ -27,7 +27,7 @@ const PackageSchema = new Schema<IPackage>(
     packageType: {
       type: String,
       required: true,
-      enum: ["FULL", "TWO_DAY"],
+      enum: ["FULL", "TWO_DAY", "CORPORATE_OWAMBE", "CORPORATE_PLUS"],
       default: "FULL",
     },
     price: {

@@ -6,7 +6,7 @@ export class PackageService {
   async createOrUpdatePackage(
     code: string,
     name: string,
-    packageType: "FULL" | "TWO_DAY",
+    packageType: "FULL" | "TWO_DAY" | "CORPORATE_OWAMBE" | "CORPORATE_PLUS",
     price: number,
     benefits: string[],
   ): Promise<IPackage> {

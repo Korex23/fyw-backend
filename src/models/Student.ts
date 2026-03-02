@@ -5,6 +5,7 @@ import { EVENT_DAY_KEYS, EventDayKey } from "../constants/eventDays";
 export interface IStudent extends Document {
   fullName: string;
   matricNumber: string;
+  gender?: "male" | "female";
   email?: string;
   phone?: string;
   department?: string;
@@ -39,6 +40,10 @@ const StudentSchema = new Schema<IStudent>(
       trim: true,
       lowercase: true,
       sparse: true,
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female"],
     },
     department: {
       type: String,

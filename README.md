@@ -4,13 +4,14 @@ Backend API for Final Year Week registration, package selection, payments, invit
 
 ## Features
 
-- Package management with 2 options:
-  - `T` (Two-Day Experience) - `N30,000`
+- Package management with 3 options:
+  - `T` (Corporate Plus) - `N30,000`
+  - `C` (Corporate & Owambe) - `N40,000`
   - `F` (Full Experience) - `N60,000`
 - Student identify/create by matric number
-- Two-day package day selection (`MONDAY` to `FRIDAY`, exactly 2)
+- Day selection rules enforced per package type
 - Flutterwave v3 payment initialization and verification
-- Upgrade flow with payment preservation (`T -> F`)
+- Upgrade flow with payment preservation (`T -> C -> F` or `T -> F`)
 - Automatic invite generation (image) with selected days included
 - Webhook processing with signature check and idempotency
 - Admin endpoints for metrics, student management, invite resend/regeneration, CSV export
@@ -27,8 +28,9 @@ Valid day keys:
 
 Rules:
 
-- Package `T` requires exactly 2 unique day keys.
-- Package `F` always grants all 5 days.
+- Package `T` (Corporate Plus): Monday is always included. Student selects exactly **1** additional day from Tuesday, Wednesday, or Thursday. Stored as `["MONDAY", "<chosen_day>"]`.
+- Package `C` (Corporate & Owambe): Fixed days — **Monday + Friday**. No day selection required.
+- Package `F` (Full Experience): All 5 days granted automatically. No day selection required.
 
 ## Setup
 
@@ -92,8 +94,9 @@ http://localhost:5000/api
 
 ## Package Seeded by Default
 
-- `T` - Two-Day Experience - `N30,000`
-- `F` - Full Experience - `N60,000`
+- `T` - Corporate Plus - `N30,000` (Monday + 1 of Tue/Wed/Thu)
+- `C` - Corporate & Owambe - `N40,000` (Monday + Friday, fixed)
+- `F` - Full Experience - `N60,000` (all 5 days)
 
 ## Public Endpoints
 
@@ -110,25 +113,43 @@ POST /api/students/identify
 Content-Type: application/json
 ```
 
-Two-day example:
+Corporate Plus example (T — Monday + 1 day):
 
 ```json
 {
   "matricNumber": "ENG23001",
   "fullName": "Jane Doe",
+  "gender": "female",
   "packageCode": "T",
   "email": "jane@example.com",
   "phone": "08012345678",
-  "selectedDays": ["MONDAY", "FRIDAY"]
+  "selectedDays": ["TUESDAY"]
 }
 ```
 
-Full package example:
+> `selectedDays` must contain exactly 1 day: `TUESDAY`, `WEDNESDAY`, or `THURSDAY`.
+> Monday is automatically added by the backend.
+
+Corporate & Owambe example (C — Monday + Friday, no selection needed):
+
+```json
+{
+  "matricNumber": "ENG23003",
+  "fullName": "Ada Obi",
+  "gender": "female",
+  "packageCode": "C",
+  "email": "ada@example.com",
+  "phone": "08098765432"
+}
+```
+
+Full package example (F — all 5 days):
 
 ```json
 {
   "matricNumber": "ENG23002",
   "fullName": "John Doe",
+  "gender": "male",
   "packageCode": "F",
   "email": "john@example.com",
   "phone": "08012345678"
@@ -152,7 +173,7 @@ Content-Type: application/json
 {
   "matricNumber": "ENG23001",
   "packageCode": "T",
-  "selectedDays": ["TUESDAY", "THURSDAY"]
+  "selectedDays": ["WEDNESDAY"]
 }
 ```
 
@@ -224,8 +245,9 @@ Content-Type: application/json
 2. Partial payments are supported
 3. Overpayments are capped at package price
 4. Upgrades preserve already paid amount
-5. `T` requires exactly 2 selected days
-6. `F` grants all 5 days
+5. `T` (Corporate Plus): send 1 day in `selectedDays` (Tue/Wed/Thu); Monday auto-added
+6. `C` (Corporate & Owambe): no `selectedDays` needed; Mon+Fri fixed
+7. `F` grants all 5 days automatically
 
 Payment statuses:
 
