@@ -59,10 +59,10 @@ export class StudentController {
         matricNumber,
         fullName,
         packageCode,
+        gender,
         email,
         phone,
         selectedDays,
-        gender,
       );
 
       res.status(200).json({

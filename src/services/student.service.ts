@@ -73,10 +73,10 @@ export class StudentService {
     matricNumber: string,
     fullName: string,
     packageCode: string,
+    gender: "male" | "female",
     email?: string,
     phone?: string,
     selectedDays?: string[],
-    gender?: "male" | "female",
   ): Promise<IPackage & { student: IStudent }> {
     const pkg = await packageService.getPackageByCode(packageCode);
     const resolvedDays = this.resolveSelectedDaysForPackage(
