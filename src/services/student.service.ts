@@ -199,6 +199,56 @@ export class StudentService {
     return await student.save();
   }
 
+  async downgradePackage(
+    matricNumber: string,
+    newPackageCode: string,
+    selectedDays?: string[],
+  ): Promise<IStudent> {
+    const student = await this.getStudentByMatricNumber(matricNumber);
+
+    if (student.paymentStatus === PaymentStatus.FULLY_PAID) {
+      throw new BadRequestError(
+        "Cannot downgrade a package after payment is complete.",
+      );
+    }
+
+    const currentPackage = await packageService.getPackageById(
+      student.packageId._id.toString(),
+    );
+    const newPackage = await packageService.getPackageByCode(newPackageCode);
+
+    if (newPackage.price >= currentPackage.price) {
+      throw new BadRequestError(
+        "Can only downgrade to a lower-priced package. Upgrades are not allowed here.",
+      );
+    }
+
+    logger.info(
+      `Downgrading student ${matricNumber} from ${currentPackage.code} (₦${currentPackage.price}) to ${newPackage.code} (₦${newPackage.price}). Current paid: ₦${student.totalPaid}`,
+    );
+
+    student.packageId = newPackage._id;
+    student.selectedDays = this.resolveSelectedDaysForPackage(
+      newPackage.packageType,
+      selectedDays,
+    );
+    student.invites = undefined;
+
+    // Cap totalPaid to the new (lower) package price and recalculate status
+    const newTotalPaid = Math.min(student.totalPaid, newPackage.price);
+    student.totalPaid = newTotalPaid;
+
+    if (newTotalPaid >= newPackage.price) {
+      student.paymentStatus = PaymentStatus.FULLY_PAID;
+    } else if (newTotalPaid > 0) {
+      student.paymentStatus = PaymentStatus.PARTIALLY_PAID;
+    } else {
+      student.paymentStatus = PaymentStatus.NOT_PAID;
+    }
+
+    return await student.save();
+  }
+
   async updatePaymentStatus(
     studentId: string,
     amount: number,

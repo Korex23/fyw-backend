@@ -54,6 +54,7 @@ export class PaymentService {
     }
 
     const reference = generateReference();
+    const chargeAmount = Math.ceil(amount * 1.02); // 2% processing fee
 
     await Payment.create({
       studentId: student._id,
@@ -77,7 +78,7 @@ export class PaymentService {
         "https://api.flutterwave.com/v3/payments",
         {
           tx_ref: reference,
-          amount,
+          amount: chargeAmount,
           currency: "NGN",
           redirect_url: redirectUrl,
           customer: {
@@ -90,7 +91,7 @@ export class PaymentService {
             matricNumber: student.matricNumber,
             packageCode: pkg.code,
             packageName: pkg.name,
-            selectedDays: student.selectedDays || [],
+            selectedDays: (student.selectedDays || []).join(","),
             fullName: student.fullName,
           },
           customizations: {

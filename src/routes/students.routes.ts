@@ -3,6 +3,7 @@ import studentController, {
   createStudentSchema,
   selectPackageSchema,
   upgradePackageSchema,
+  downgradePackageSchema,
   getStudentSchema,
 } from "../controllers/student.controller";
 import { validate } from "../middlewares/validation.middleware";
@@ -41,6 +42,13 @@ router.post(
   "/upgrade-package",
   validate(upgradePackageSchema),
   studentController.upgradePackage.bind(studentController),
+);
+
+// Downgrade package (only allowed when payment is not complete)
+router.post(
+  "/downgrade-package",
+  validate(downgradePackageSchema),
+  studentController.downgradePackage.bind(studentController),
 );
 
 export default router;

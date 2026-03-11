@@ -31,6 +31,14 @@ export const upgradePackageSchema = z.object({
   }),
 });
 
+export const downgradePackageSchema = z.object({
+  body: z.object({
+    matricNumber: z.string().min(5),
+    newPackageCode: z.string().length(1),
+    selectedDays: z.array(z.string()).optional(),
+  }),
+});
+
 export const getStudentSchema = z.object({
   params: z.object({
     matricNumber: z.string(),
@@ -165,6 +173,39 @@ export class StudentController {
       res.status(200).json({
         success: true,
         message: "Package upgraded successfully",
+        data: {
+          student,
+          package: pkg,
+          outstanding,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async downgradePackage(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { matricNumber, newPackageCode, selectedDays } = req.body;
+
+      const student = await studentService.downgradePackage(
+        matricNumber,
+        newPackageCode,
+        selectedDays,
+      );
+      const pkg = await packageService.getPackageById(
+        student.packageId._id.toString(),
+      );
+
+      const outstanding = Math.max(pkg.price - student.totalPaid, 0);
+
+      res.status(200).json({
+        success: true,
+        message: "Package downgraded successfully",
         data: {
           student,
           package: pkg,
