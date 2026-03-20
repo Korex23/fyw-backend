@@ -37,32 +37,55 @@ export class StudentService {
     }
 
     if (packageType === "CORPORATE_OWAMBE") {
-      // Fixed days: Monday (Corporate Day) + Friday (Owambe) — no selection needed
-      return ["MONDAY", "FRIDAY"];
-    }
-
-    if (packageType === "CORPORATE_PLUS") {
-      // Monday is always included; student picks exactly 1 day from Tue/Wed/Thu
-      const extra = Array.from(
+      // Friday is always included; student picks exactly 1 other day from Mon/Tue/Wed/Thu
+      const days = Array.from(
         new Set((selectedDays || []).map((d) => d.toUpperCase())),
       ) as EventDayKey[];
 
-      const filtered = extra.filter((d) => d !== "MONDAY" && d !== "FRIDAY");
+      const extra = days.filter((d) => d !== "FRIDAY");
 
-      if (filtered.length !== 1) {
+      if (extra.length !== 1) {
         throw new BadRequestError(
-          "Corporate Plus package requires exactly 1 additional day (Tuesday, Wednesday, or Thursday)",
+          "Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)",
         );
       }
 
-      const ALLOWED: EventDayKey[] = ["TUESDAY", "WEDNESDAY", "THURSDAY"];
-      if (!ALLOWED.includes(filtered[0])) {
+      const ALLOWED: EventDayKey[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"];
+      if (!ALLOWED.includes(extra[0])) {
         throw new BadRequestError(
-          "Corporate Plus package: additional day must be Tuesday, Wednesday, or Thursday",
+          "Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday",
         );
       }
 
-      return ["MONDAY", filtered[0]];
+      return ["FRIDAY", extra[0]];
+    }
+
+    if (packageType === "CORPORATE_PLUS") {
+      // Any 2 days except Friday
+      const days = Array.from(
+        new Set((selectedDays || []).map((d) => d.toUpperCase())),
+      ) as EventDayKey[];
+
+      if (days.includes("FRIDAY")) {
+        throw new BadRequestError(
+          "Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday",
+        );
+      }
+
+      if (days.length !== 2) {
+        throw new BadRequestError(
+          "Corporate Plus package requires exactly 2 days (any days except Friday)",
+        );
+      }
+
+      const ALLOWED: EventDayKey[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"];
+      if (days.some((d) => !ALLOWED.includes(d))) {
+        throw new BadRequestError(
+          "Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday",
+        );
+      }
+
+      return days;
     }
 
     // TWO_DAY (legacy): any 2 days

@@ -1,28 +1,24 @@
 # Frontend Implementation Guide
 
-## 1. Package Restructure
+## 1. Package Overview
 
-The package lineup has been updated. The old single "Two-Day" package (any 2 days, ₦30k) has been replaced with two distinct packages:
-
-| Code | Name               | Price   | Days                                                   |
-| ---- | ------------------ | ------- | ------------------------------------------------------ |
-| `T`  | Corporate Plus     | ₦30,000 | Monday (fixed) + **1 day you pick** (Tue, Wed, or Thu) |
-| `C`  | Corporate & Owambe | ₦40,000 | Monday + Friday (**both fixed, no selection**)         |
-| `F`  | Full Experience    | ₦60,000 | All 5 days (**no selection needed**)                   |
+| Code | Name               | Price   | Days                                                          |
+| ---- | ------------------ | ------- | ------------------------------------------------------------- |
+| `T`  | Corporate Plus     | ₦30,000 | **Any 2 days** from Mon–Thu (Friday excluded, student picks both) |
+| `C`  | Corporate & Owambe | ₦40,000 | Friday (fixed) + **1 day you pick** from Mon, Tue, Wed, or Thu |
+| `F`  | Full Experience    | ₦60,000 | All 5 days (**no selection needed**)                          |
 
 ---
 
-## 2. Gender Field — Now Required
+## 2. Gender Field — Required
 
-`gender` is now a **required field** on the identify/create student endpoint. The form must collect it before submission and the field must always be included in the request body.
+`gender` is a **required field** on the identify/create student endpoint. Must always be included in the request body.
 
-**Accepted values:** `"male"` or `"female"` (lowercase, exactly as written).
+**Accepted values:** `"male"` or `"female"` (lowercase).
 
 ### Form UI
 
-Add a gender selector to the registration/identification form. This must be answered before the form can be submitted — treat it the same as `fullName` and `matricNumber`.
-
-Recommended UI: two mutually exclusive radio buttons or a toggle.
+Add a gender selector to the registration/identification form. Treat it the same as `fullName` and `matricNumber` — required before submission.
 
 ```
 Gender *
@@ -31,8 +27,8 @@ Gender *
 
 ### Validation
 
-- Field is required — show an inline error if the user tries to submit without selecting one.
-- No default selection — force a deliberate choice.
+- Required — show an inline error if submitted without a selection.
+- No default — force a deliberate choice.
 
 ---
 
@@ -40,26 +36,26 @@ Gender *
 
 ### Package `T` — Corporate Plus (₦30,000)
 
-**Old behaviour:** Show a day picker where the user chose any 2 days from Mon–Fri.
-
-**New behaviour:**
-
-- Monday is **always included** — show it as a pre-selected, disabled chip/badge.
-- Show a picker for **1 additional day** with only these options:
+- Show a picker for **2 days** — all options are from Mon–Thu only:
+  - Monday (Corporate Day)
   - Tuesday (Denim Day)
   - Wednesday (Costume Day)
   - Thursday (Jersey Day)
 - Friday must **not** appear as an option.
-- The user must pick exactly **1** day.
+- The user must pick exactly **2** days.
+- No pre-selected days — both choices are free.
 
 ---
 
 ### Package `C` — Corporate & Owambe (₦40,000)
 
-**New package — no day selection UI needed.**
-
-- Show both days as pre-selected, non-interactive: **Monday (Corporate Day)** and **Friday (Cultural Day/Owambe)**.
-- The user cannot change the days.
+- Friday is **always included** — show it as a pre-selected, disabled chip/badge.
+- Show a picker for **1 additional day** with these options:
+  - Monday (Corporate Day)
+  - Tuesday (Denim Day)
+  - Wednesday (Costume Day)
+  - Thursday (Jersey Day)
+- The user must pick exactly **1** day.
 
 ---
 
@@ -73,10 +69,10 @@ No change. Show all 5 days as included. No picker.
 
 ### POST `/api/students/identify`
 
-`gender` is required on this endpoint alongside `matricNumber`, `fullName`, and `packageCode`.
+`gender` is required alongside `matricNumber`, `fullName`, and `packageCode`.
 
 ```json
-// Corporate Plus (T)
+// Corporate Plus (T) — pick any 2 days from Mon–Thu
 {
   "matricNumber": "ENG23001",
   "fullName": "Jane Doe",
@@ -84,19 +80,20 @@ No change. Show all 5 days as included. No picker.
   "packageCode": "T",
   "email": "jane@example.com",
   "phone": "08012345678",
-  "selectedDays": ["TUESDAY"]
+  "selectedDays": ["MONDAY", "WEDNESDAY"]
 }
 ```
 
 ```json
-// Corporate & Owambe (C) — no selectedDays needed
+// Corporate & Owambe (C) — send 1 non-Friday day; Friday is added automatically
 {
   "matricNumber": "ENG23002",
   "fullName": "Ada Obi",
   "gender": "female",
   "packageCode": "C",
   "email": "ada@example.com",
-  "phone": "08098765432"
+  "phone": "08098765432",
+  "selectedDays": ["MONDAY"]
 }
 ```
 
@@ -119,20 +116,21 @@ No change. Show all 5 days as included. No picker.
 
 ### POST `/api/students/select-package`
 
-Gender is **not** required here — this endpoint only updates the package/day selection for an already-identified student.
+Gender is **not** required here — only updates the package/day selection for an already-identified student.
 
 ```json
-// Switching to Corporate Plus, picking Wednesday as extra day
+// Switching to Corporate Plus — pick any 2 days from Mon–Thu
 {
   "matricNumber": "ENG23001",
   "packageCode": "T",
-  "selectedDays": ["WEDNESDAY"]
+  "selectedDays": ["TUESDAY", "THURSDAY"]
 }
 
-// Switching to Corporate & Owambe — no selectedDays
+// Switching to Corporate & Owambe — send 1 non-Friday day
 {
   "matricNumber": "ENG23001",
-  "packageCode": "C"
+  "packageCode": "C",
+  "selectedDays": ["WEDNESDAY"]
 }
 ```
 
@@ -140,16 +138,17 @@ Gender is **not** required here — this endpoint only updates the package/day s
 
 ### POST `/api/students/upgrade-package`
 
-Gender is **not** required here either.
+Gender is **not** required here.
 
 ```json
-// T → C
+// T → C  (must include selectedDays for C — the non-Friday day)
 {
   "matricNumber": "ENG23001",
-  "newPackageCode": "C"
+  "newPackageCode": "C",
+  "selectedDays": ["MONDAY"]
 }
 
-// T → F  or  C → F
+// T → F  or  C → F  (no selectedDays needed)
 {
   "matricNumber": "ENG23001",
   "newPackageCode": "F"
@@ -176,13 +175,13 @@ Previously paid amounts are preserved across upgrades. Show the outstanding bala
 
 ## 6. GET `/api/students/packages` Response
 
-Use `packageType` from the packages API to drive UI logic — don't hardcode package behaviour by `code`.
+Use `packageType` to drive UI logic — don't hardcode behaviour by `code`.
 
-| `packageType`      | Day picker UI                                          |
-| ------------------ | ------------------------------------------------------ |
-| `CORPORATE_PLUS`   | Show Monday (disabled) + single picker for Tue/Wed/Thu |
-| `CORPORATE_OWAMBE` | Show Monday + Friday (both disabled, no picker)        |
-| `FULL`             | Show all 5 days (disabled, no picker)                  |
+| `packageType`      | Day picker UI                                                      |
+| ------------------ | ------------------------------------------------------------------ |
+| `CORPORATE_PLUS`   | Picker for **2 days** from Mon–Thu (no pre-selection, no Friday)  |
+| `CORPORATE_OWAMBE` | Friday (disabled/pre-selected) + picker for **1 day** from Mon–Thu |
+| `FULL`             | All 5 days shown (disabled, no picker)                             |
 
 Full response shape:
 
@@ -218,13 +217,13 @@ Full response shape:
 
 ### 7.1 Two distinct error shapes
 
-Every error response has `success: false`. However the `message` field means **different things** depending on the source of the error — you must handle both.
+Every error response has `success: false`. However the `message` field means **different things** depending on the source — you must handle both.
 
 ---
 
 #### Shape A — Validation error (Zod, field-level)
 
-Triggered when required fields are missing, wrong type, wrong format, or wrong length. HTTP status is always `400`.
+Triggered when required fields are missing, wrong type, or wrong format. HTTP status is always `400`.
 
 ```json
 {
@@ -233,16 +232,15 @@ Triggered when required fields are missing, wrong type, wrong format, or wrong l
 }
 ```
 
-> `message` is a **JSON-stringified array**. You must `JSON.parse(response.message)` to get the field-level errors.
+> `message` is a **JSON-stringified array**. You must `JSON.parse(response.message)` to get field-level errors.
 
 ```js
-// Parsing pattern
 if (response.success === false) {
   try {
     const fieldErrors = JSON.parse(response.message);
     // fieldErrors = [{ field: "body.gender", message: "Required" }, ...]
     fieldErrors.forEach(({ field, message }) => {
-      const key = field.replace("body.", ""); // "gender", "matricNumber", etc.
+      const key = field.replace("body.", "");
       showFieldError(key, message);
     });
   } catch {
@@ -256,7 +254,7 @@ if (response.success === false) {
 
 #### Shape B — App / service error (plain string)
 
-Triggered by business logic, missing records, or server failures. HTTP status varies.
+Triggered by business logic, missing records, or server failures.
 
 ```json
 {
@@ -265,7 +263,7 @@ Triggered by business logic, missing records, or server failures. HTTP status va
 }
 ```
 
-`message` is always a plain, human-readable string here — display it directly.
+Display `message` directly.
 
 ---
 
@@ -289,8 +287,7 @@ Triggered by business logic, missing records, or server failures. HTTP status va
 }
 ```
 
-Payment endpoints have a stricter limit. Message will be:
-`"Too many payment requests, please try again later"`
+Payment endpoints return: `"Too many payment requests, please try again later"`
 
 ---
 
@@ -303,7 +300,7 @@ Payment endpoints have a stricter limit. Message will be:
 }
 ```
 
-Show a generic fallback message. Do not retry automatically.
+Show a generic fallback. Do not retry automatically.
 
 ---
 
@@ -332,15 +329,18 @@ Show a generic fallback message. Do not retry automatically.
 | Status | `message` | Cause |
 |--------|-----------|-------|
 | `404` | `"Package with code X not found"` | `packageCode` doesn't match any package |
-| `400` | `"Corporate Plus package requires exactly 1 additional day (Tuesday, Wednesday, or Thursday)"` | Package `T` selected, `selectedDays` is empty or has more than 1 item |
-| `400` | `"Corporate Plus package: additional day must be Tuesday, Wednesday, or Thursday"` | Package `T` selected, the provided day is Monday or Friday |
-| `400` | `"Selected days contain invalid day values"` | A day string doesn't match any known day key |
+| `400` | `"Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday"` | Package `T` — Friday was included in `selectedDays` |
+| `400` | `"Corporate Plus package requires exactly 2 days (any days except Friday)"` | Package `T` — wrong number of days sent |
+| `400` | `"Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Package `T` — unrecognised day value |
+| `400` | `"Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Package `C` — wrong number of non-Friday days |
+| `400` | `"Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Package `C` — invalid additional day |
+| `400` | `"Selected days contain invalid day values"` | A day string doesn't match any known key |
 
 **Other**
 
 | Status | Shape | `message` |
 |--------|-------|-----------|
-| `409` | C | `"matricNumber already exists"` — race condition, very rare |
+| `409` | C | `"matricNumber already exists"` |
 | `429` | D | `"Too many requests, please try again later"` |
 | `500` | E | `"Internal server error"` |
 
@@ -348,13 +348,11 @@ Show a generic fallback message. Do not retry automatically.
 
 #### `GET /api/students/:matricNumber`
 
-No body validation. The matric number comes from the URL.
-
 **App errors — Shape B**
 
 | Status | `message` | Cause |
 |--------|-----------|-------|
-| `404` | `"Student not found"` | No student exists with that matric number |
+| `404` | `"Student not found"` | No student with that matric number |
 
 **Other**
 
@@ -382,8 +380,11 @@ No body validation. The matric number comes from the URL.
 |--------|-----------|-------|
 | `404` | `"Student not found"` | Matric number not registered |
 | `404` | `"Package with code X not found"` | `packageCode` doesn't match any package |
-| `400` | `"Corporate Plus package requires exactly 1 additional day (Tuesday, Wednesday, or Thursday)"` | Package `T`, wrong number of days |
-| `400` | `"Corporate Plus package: additional day must be Tuesday, Wednesday, or Thursday"` | Package `T`, day is Mon or Fri |
+| `400` | `"Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday"` | Package `T` — Friday included |
+| `400` | `"Corporate Plus package requires exactly 2 days (any days except Friday)"` | Package `T` — wrong day count |
+| `400` | `"Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Package `T` — invalid day |
+| `400` | `"Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Package `C` — wrong number of non-Friday days |
+| `400` | `"Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Package `C` — invalid additional day |
 | `400` | `"Selected days contain invalid day values"` | Unrecognised day string |
 
 **Other**
@@ -413,7 +414,7 @@ No body validation. The matric number comes from the URL.
 | `404` | `"Student not found"` | Matric number not registered |
 | `404` | `"Package with code X not found"` | `newPackageCode` doesn't match any package |
 | `404` | `"Package not found"` | Student's current package record is missing |
-| `400` | `"Can only upgrade to a higher-priced package. Downgrades are not allowed."` | Target package price ≤ current package price |
+| `400` | `"Can only upgrade to a higher-priced package. Downgrades are not allowed."` | Target price ≤ current price |
 
 **Other**
 
@@ -426,7 +427,7 @@ No body validation. The matric number comes from the URL.
 
 #### `POST /api/payments/initialize`
 
-> Note: `studentId` in this request body is the student's **matric number**, not a database ID.
+> `studentId` in the request body is the student's **matric number**, not a database ID.
 
 **Validation errors — Shape A (400)**
 
@@ -434,7 +435,7 @@ No body validation. The matric number comes from the URL.
 |---------|-----------|-------|
 | `body.studentId` | `"Required"` | Field missing |
 | `body.amount` | `"Required"` | Field missing |
-| `body.amount` | `"Expected number, received string"` | Amount sent as a string, not a number |
+| `body.amount` | `"Expected number, received string"` | Amount sent as a string |
 | `body.amount` | `"Number must be greater than 0"` | Amount is 0 or negative |
 | `body.email` | `"Required"` | Field missing |
 | `body.email` | `"Invalid email"` | Malformed email |
@@ -444,10 +445,10 @@ No body validation. The matric number comes from the URL.
 | Status | `message` | Cause |
 |--------|-----------|-------|
 | `404` | `"Student not found"` | Matric number not registered |
-| `400` | `"Package already fully paid"` | Student has no outstanding balance |
-| `400` | `"Amount must be greater than 0"` | Edge case if amount bypasses Zod |
-| `400` | `"Failed to initialize payment"` | Flutterwave API rejected the request |
-| `400` | Varies | Flutterwave returned a specific error message |
+| `400` | `"Package already fully paid"` | No outstanding balance |
+| `400` | `"Amount must be greater than 0"` | Edge case |
+| `400` | `"Failed to initialize payment"` | Flutterwave rejected the request |
+| `400` | Varies | Flutterwave-specific error message |
 
 **Other**
 
@@ -464,14 +465,14 @@ No body validation. The matric number comes from the URL.
 
 | `field` | `message` | Cause |
 |---------|-----------|-------|
-| `query.reference` | `"Required"` | `reference` query param missing from URL |
+| `query.reference` | `"Required"` | `reference` query param missing |
 
 **App errors — Shape B**
 
 | Status | `message` | Cause |
 |--------|-----------|-------|
-| `404` | `"Payment not found"` | Reference doesn't match any payment record |
-| `400` | `"Payment verification failed"` | Flutterwave returned a non-success status |
+| `404` | `"Payment not found"` | Reference doesn't match any payment |
+| `400` | `"Payment verification failed"` | Flutterwave returned non-success status |
 
 **Other**
 
@@ -490,45 +491,25 @@ async function apiCall(url, options) {
   const body = await res.json();
 
   if (!body.success) {
-    // Rate limited
-    if (res.status === 429) {
-      showToast(body.message);
-      return;
-    }
+    if (res.status === 429) { showToast(body.message); return; }
+    if (res.status === 500) { showToast("Something went wrong. Please try again."); return; }
+    if (res.status === 409) { showToast(body.message); return; }
 
-    // Server error
-    if (res.status === 500) {
-      showToast("Something went wrong. Please try again.");
-      return;
-    }
-
-    // Duplicate record
-    if (res.status === 409) {
-      showToast(body.message); // e.g. "matricNumber already exists"
-      return;
-    }
-
-    // Validation error — message is a JSON string
     if (res.status === 400) {
       try {
         const fieldErrors = JSON.parse(body.message);
         fieldErrors.forEach(({ field, message }) => {
           const key = field.replace("body.", "").replace("query.", "");
-          setFieldError(key, message); // show inline under the field
+          setFieldError(key, message);
         });
         return;
       } catch {
-        // Not a field-level error — show as a toast/banner
         showToast(body.message);
         return;
       }
     }
 
-    // 404 — not found
-    if (res.status === 404) {
-      showToast(body.message);
-      return;
-    }
+    if (res.status === 404) { showToast(body.message); return; }
   }
 
   return body.data;
@@ -548,16 +529,14 @@ async function apiCall(url, options) {
 | `gender`         | **required**          | —                     | —                  |
 | `packageCode`    | required              | required              | —                  |
 | `newPackageCode` | —                     | —                     | required           |
-| `selectedDays`   | required for `T` only | required for `T` only | —                  |
+| `selectedDays`   | required for `T` & `C` | required for `T` & `C` | required for `C` |
 | `email`          | optional              | —                     | —                  |
 | `phone`          | optional              | —                     | —                  |
 
 ### `selectedDays` rules
 
-| Package | What to send                                                               |
-| ------- | -------------------------------------------------------------------------- |
-| `T`     | Array with **exactly 1 item**: `"TUESDAY"`, `"WEDNESDAY"`, or `"THURSDAY"` |
-| `C`     | Omit or send `[]`                                                          |
-| `F`     | Omit or send `[]`                                                          |
-
-> For package `T`, do **not** include `"MONDAY"` — the backend adds it automatically.
+| Package | What to send | Notes |
+| ------- | ------------ | ----- |
+| `T`     | Array with **exactly 2 items** from Mon–Thu | e.g. `["MONDAY", "WEDNESDAY"]` — Friday must not be included |
+| `C`     | Array with **exactly 1 item** (the non-Friday day) | e.g. `["MONDAY"]` — Friday is added automatically by the backend |
+| `F`     | Omit or send `[]` | All days are automatic |
