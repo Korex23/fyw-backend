@@ -2,7 +2,7 @@
 
 ## What Changed
 
-### ₦30,000 — Corporate Plus (`T`)
+### ₦30,000 — Two-Day Flex (`T`)
 
 | | Before | After |
 |---|---|---|
@@ -10,7 +10,7 @@
 | Monday pre-selected? | Yes — always included | No — student picks both days freely |
 | Friday available? | No | No |
 
-### ₦40,000 — Corporate & Owambe (`C`)
+### ₦40,000 — Owambe Plus (`C`)
 
 | | Before | After |
 |---|---|---|
@@ -25,7 +25,7 @@ No change. All 5 days (Mon–Fri), no selection needed.
 
 ## What the Frontend Needs to Do
 
-### Package `T` — Corporate Plus (₦30,000)
+### Package `T` — Two-Day Flex (₦30,000)
 
 **Day picker UI:**
 - Show a multi-select picker with **4 options only**: Monday, Tuesday, Wednesday, Thursday
@@ -41,7 +41,7 @@ Any 2 values from: `"MONDAY"`, `"TUESDAY"`, `"WEDNESDAY"`, `"THURSDAY"`
 
 ---
 
-### Package `C` — Corporate & Owambe (₦40,000)
+### Package `C` — Owambe Plus (₦40,000)
 
 **Day picker UI:**
 - Show **Friday** as a pre-selected, disabled chip (always included)
@@ -81,15 +81,15 @@ These are new backend error strings that may now come back. Add them to your err
 ### Package `T` errors
 | `message` | Cause |
 |-----------|-------|
-| `"Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday"` | Friday was included in `selectedDays` |
-| `"Corporate Plus package requires exactly 2 days (any days except Friday)"` | Not exactly 2 days sent |
-| `"Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Invalid day value |
+| `"Two-Day Flex package does not include Friday. Please select 2 days from Monday to Thursday"` | Friday was included in `selectedDays` |
+| `"Two-Day Flex package requires exactly 2 days (any days except Friday)"` | Not exactly 2 days sent |
+| `"Two-Day Flex package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Invalid day value |
 
 ### Package `C` errors
 | `message` | Cause |
 |-----------|-------|
-| `"Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Not exactly 1 non-Friday day sent |
-| `"Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Invalid additional day |
+| `"Owambe Plus package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Not exactly 1 non-Friday day sent |
+| `"Owambe Plus package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Invalid additional day |
 
 > These are Shape B errors (plain string). Display them directly as a toast or inline message.
 

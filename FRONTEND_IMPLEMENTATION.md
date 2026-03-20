@@ -4,8 +4,8 @@
 
 | Code | Name               | Price   | Days                                                          |
 | ---- | ------------------ | ------- | ------------------------------------------------------------- |
-| `T`  | Corporate Plus     | ₦30,000 | **Any 2 days** from Mon–Thu (Friday excluded, student picks both) |
-| `C`  | Corporate & Owambe | ₦40,000 | Friday (fixed) + **1 day you pick** from Mon, Tue, Wed, or Thu |
+| `T`  | Two-Day Flex     | ₦30,000 | **Any 2 days** from Mon–Thu (Friday excluded, student picks both) |
+| `C`  | Owambe Plus | ₦40,000 | Friday (fixed) + **1 day you pick** from Mon, Tue, Wed, or Thu |
 | `F`  | Full Experience    | ₦60,000 | All 5 days (**no selection needed**)                          |
 
 ---
@@ -34,7 +34,7 @@ Gender *
 
 ## 3. Package Selection UI Changes
 
-### Package `T` — Corporate Plus (₦30,000)
+### Package `T` — Two-Day Flex (₦30,000)
 
 - Show a picker for **2 days** — all options are from Mon–Thu only:
   - Monday (Corporate Day)
@@ -47,7 +47,7 @@ Gender *
 
 ---
 
-### Package `C` — Corporate & Owambe (₦40,000)
+### Package `C` — Owambe Plus (₦40,000)
 
 - Friday is **always included** — show it as a pre-selected, disabled chip/badge.
 - Show a picker for **1 additional day** with these options:
@@ -72,7 +72,7 @@ No change. Show all 5 days as included. No picker.
 `gender` is required alongside `matricNumber`, `fullName`, and `packageCode`.
 
 ```json
-// Corporate Plus (T) — pick any 2 days from Mon–Thu
+// Two-Day Flex (T) — pick any 2 days from Mon–Thu
 {
   "matricNumber": "ENG23001",
   "fullName": "Jane Doe",
@@ -85,7 +85,7 @@ No change. Show all 5 days as included. No picker.
 ```
 
 ```json
-// Corporate & Owambe (C) — send 1 non-Friday day; Friday is added automatically
+// Owambe Plus (C) — send 1 non-Friday day; Friday is added automatically
 {
   "matricNumber": "ENG23002",
   "fullName": "Ada Obi",
@@ -119,14 +119,14 @@ No change. Show all 5 days as included. No picker.
 Gender is **not** required here — only updates the package/day selection for an already-identified student.
 
 ```json
-// Switching to Corporate Plus — pick any 2 days from Mon–Thu
+// Switching to Two-Day Flex — pick any 2 days from Mon–Thu
 {
   "matricNumber": "ENG23001",
   "packageCode": "T",
   "selectedDays": ["TUESDAY", "THURSDAY"]
 }
 
-// Switching to Corporate & Owambe — send 1 non-Friday day
+// Switching to Owambe Plus — send 1 non-Friday day
 {
   "matricNumber": "ENG23001",
   "packageCode": "C",
@@ -189,14 +189,14 @@ Full response shape:
 [
   {
     "code": "T",
-    "name": "Corporate Plus",
+    "name": "Two-Day Flex",
     "packageType": "CORPORATE_PLUS",
     "price": 30000,
     "benefits": ["..."]
   },
   {
     "code": "C",
-    "name": "Corporate & Owambe",
+    "name": "Owambe Plus",
     "packageType": "CORPORATE_OWAMBE",
     "price": 40000,
     "benefits": ["..."]
@@ -329,11 +329,11 @@ Show a generic fallback. Do not retry automatically.
 | Status | `message` | Cause |
 |--------|-----------|-------|
 | `404` | `"Package with code X not found"` | `packageCode` doesn't match any package |
-| `400` | `"Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday"` | Package `T` — Friday was included in `selectedDays` |
-| `400` | `"Corporate Plus package requires exactly 2 days (any days except Friday)"` | Package `T` — wrong number of days sent |
-| `400` | `"Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Package `T` — unrecognised day value |
-| `400` | `"Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Package `C` — wrong number of non-Friday days |
-| `400` | `"Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Package `C` — invalid additional day |
+| `400` | `"Two-Day Flex package does not include Friday. Please select 2 days from Monday to Thursday"` | Package `T` — Friday was included in `selectedDays` |
+| `400` | `"Two-Day Flex package requires exactly 2 days (any days except Friday)"` | Package `T` — wrong number of days sent |
+| `400` | `"Two-Day Flex package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Package `T` — unrecognised day value |
+| `400` | `"Owambe Plus package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Package `C` — wrong number of non-Friday days |
+| `400` | `"Owambe Plus package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Package `C` — invalid additional day |
 | `400` | `"Selected days contain invalid day values"` | A day string doesn't match any known key |
 
 **Other**
@@ -380,11 +380,11 @@ Show a generic fallback. Do not retry automatically.
 |--------|-----------|-------|
 | `404` | `"Student not found"` | Matric number not registered |
 | `404` | `"Package with code X not found"` | `packageCode` doesn't match any package |
-| `400` | `"Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday"` | Package `T` — Friday included |
-| `400` | `"Corporate Plus package requires exactly 2 days (any days except Friday)"` | Package `T` — wrong day count |
-| `400` | `"Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Package `T` — invalid day |
-| `400` | `"Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Package `C` — wrong number of non-Friday days |
-| `400` | `"Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Package `C` — invalid additional day |
+| `400` | `"Two-Day Flex package does not include Friday. Please select 2 days from Monday to Thursday"` | Package `T` — Friday included |
+| `400` | `"Two-Day Flex package requires exactly 2 days (any days except Friday)"` | Package `T` — wrong day count |
+| `400` | `"Two-Day Flex package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Package `T` — invalid day |
+| `400` | `"Owambe Plus package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Package `C` — wrong number of non-Friday days |
+| `400` | `"Owambe Plus package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Package `C` — invalid additional day |
 | `400` | `"Selected days contain invalid day values"` | Unrecognised day string |
 
 **Other**

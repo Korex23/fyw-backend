@@ -55,7 +55,7 @@ After the student picks a target package, show the same day-picker UI used durin
 #### Request body
 
 ```json
-// Downgrading to Corporate Plus (T) — pick any 2 days from Mon–Thu
+// Downgrading to Two-Day Flex (T) — pick any 2 days from Mon–Thu
 {
   "matricNumber": "ENG23001",
   "newPackageCode": "T",
@@ -64,7 +64,7 @@ After the student picks a target package, show the same day-picker UI used durin
 ```
 
 ```json
-// Downgrading to Corporate & Owambe (C) — send 1 non-Friday day
+// Downgrading to Owambe Plus (C) — send 1 non-Friday day
 {
   "matricNumber": "ENG23001",
   "newPackageCode": "C",
@@ -98,7 +98,7 @@ After the student picks a target package, show the same day-picker UI used durin
     "student": { "..." : "..." },
     "package": {
       "code": "T",
-      "name": "Corporate Plus",
+      "name": "Two-Day Flex",
       "packageType": "CORPORATE_PLUS",
       "price": 30000,
       "benefits": ["..."]
@@ -138,11 +138,11 @@ After the student picks a target package, show the same day-picker UI used durin
 | `404`  | `"Package not found"` | Student's current package record is missing |
 | `400`  | `"Cannot downgrade a package after payment is complete."` | Student is `FULLY_PAID` |
 | `400`  | `"Can only downgrade to a lower-priced package. Upgrades are not allowed here."` | Target price ≥ current price |
-| `400`  | `"Corporate Plus package does not include Friday. Please select 2 days from Monday to Thursday"` | Target is `T`, Friday was included |
-| `400`  | `"Corporate Plus package requires exactly 2 days (any days except Friday)"` | Target is `T`, wrong day count |
-| `400`  | `"Corporate Plus package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Target is `T`, invalid day value |
-| `400`  | `"Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Target is `C`, wrong number of non-Friday days |
-| `400`  | `"Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Target is `C`, invalid additional day |
+| `400`  | `"Two-Day Flex package does not include Friday. Please select 2 days from Monday to Thursday"` | Target is `T`, Friday was included |
+| `400`  | `"Two-Day Flex package requires exactly 2 days (any days except Friday)"` | Target is `T`, wrong day count |
+| `400`  | `"Two-Day Flex package: days must be Monday, Tuesday, Wednesday, or Thursday"` | Target is `T`, invalid day value |
+| `400`  | `"Owambe Plus package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)"` | Target is `C`, wrong number of non-Friday days |
+| `400`  | `"Owambe Plus package: additional day must be Monday, Tuesday, Wednesday, or Thursday"` | Target is `C`, invalid additional day |
 | `400`  | `"Selected days contain invalid day values"` | Unrecognised day string |
 
 ---
@@ -161,7 +161,7 @@ After the student picks a target package, show the same day-picker UI used durin
 ```
 Student profile page
   └── Package section
-        ├── Current package: Corporate & Owambe (₦40,000)
+        ├── Current package: Owambe Plus (₦40,000)
         ├── Paid: ₦15,000  |  Outstanding: ₦25,000
         │
         ├── [Upgrade Package]     ← shown when higher packages exist

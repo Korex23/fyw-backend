@@ -7,18 +7,18 @@ import logger from "../src/utils/logger";
 const packages = [
   {
     code: "T",
-    name: "Corporate Plus",
+    name: "Two-Day Flex",
     packageType: "CORPORATE_PLUS" as const,
     price: 30000,
     benefits: [
       "Access to any 2 days (Monday, Tuesday, Wednesday, or Thursday — no Friday)",
       "Custom day-based entry invite",
-      "Option to upgrade to Corporate & Owambe or Full Experience",
+      "Option to upgrade to Owambe Plus or Full Experience",
     ],
   },
   {
     code: "C",
-    name: "Corporate & Owambe",
+    name: "Owambe Plus",
     packageType: "CORPORATE_OWAMBE" as const,
     price: 40000,
     benefits: [
