@@ -37,27 +37,30 @@ export class StudentService {
     }
 
     if (packageType === "CORPORATE_OWAMBE") {
-      // Friday is always included; student picks exactly 1 other day from Mon/Tue/Wed/Thu
+      // Anchor day is either Monday (Corporate Day) or Friday (Owambe Day) — student picks one,
+      // plus exactly 2 other days from the remaining weekdays (3 days total).
       const days = Array.from(
         new Set((selectedDays || []).map((d) => d.toUpperCase())),
       ) as EventDayKey[];
 
-      const extra = days.filter((d) => d !== "FRIDAY");
-
-      if (extra.length !== 1) {
+      if (days.length !== 3) {
         throw new BadRequestError(
-          "Corporate & Owambe package requires exactly 1 additional day (Monday, Tuesday, Wednesday, or Thursday)",
+          "This package requires exactly 3 days: Monday or Friday as your anchor day, plus any 2 other days",
         );
       }
 
-      const ALLOWED: EventDayKey[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"];
-      if (!ALLOWED.includes(extra[0])) {
+      if (days.some((d) => !EVENT_DAY_KEYS.includes(d))) {
+        throw new BadRequestError("Selected days contain invalid day values");
+      }
+
+      const anchorDays = days.filter((d) => d === "MONDAY" || d === "FRIDAY");
+      if (anchorDays.length !== 1) {
         throw new BadRequestError(
-          "Corporate & Owambe package: additional day must be Monday, Tuesday, Wednesday, or Thursday",
+          "This package requires exactly one anchor day: either Monday (Corporate Day) or Friday (Owambe Day)",
         );
       }
 
-      return ["FRIDAY", extra[0]];
+      return days;
     }
 
     if (packageType === "CORPORATE_PLUS") {

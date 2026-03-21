@@ -22,8 +22,8 @@ const packages = [
     packageType: "CORPORATE_OWAMBE" as const,
     price: 40000,
     benefits: [
-      "Access to Cultural Day/Owambe (Friday) + 1 chosen day (Mon, Tue, Wed, or Thu)",
-      "Custom two-day entry invite",
+      "Access to Cultural Day/Owambe (Friday) + 2 chosen days (any 2 from Mon, Tue, Wed, or Thu)",
+      "Custom three-day entry invite",
       "Option to upgrade to Full Experience",
     ],
   },
