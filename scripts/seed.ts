@@ -22,7 +22,7 @@ const packages = [
     packageType: "CORPORATE_OWAMBE" as const,
     price: 40000,
     benefits: [
-      "Access to Cultural Day/Owambe (Friday) + 2 chosen days (any 2 from Mon, Tue, Wed, or Thu)",
+      "Access to Cultural or Corporate Day + 2 chosen days (any 2 from Tue, Wed, or Thu)",
       "Custom three-day entry invite",
       "Option to upgrade to Full Experience",
     ],
@@ -49,7 +49,9 @@ async function seed() {
     // Create or update packages
     logger.info("🌱 Seeding packages...");
 
-    await Package.deleteMany({ code: { $nin: packages.map((pkg) => pkg.code) } });
+    await Package.deleteMany({
+      code: { $nin: packages.map((pkg) => pkg.code) },
+    });
 
     for (const pkg of packages) {
       const created = await packageService.createOrUpdatePackage(
