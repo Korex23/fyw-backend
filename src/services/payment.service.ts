@@ -15,6 +15,7 @@ import inviteService from "./invite.service";
 import mailService from "./mail.service";
 import logger from "../utils/logger";
 import { env } from "../config/env";
+import { getEffectivePrice } from "../constants/discounts";
 
 export class PaymentService {
   private extractGatewayError(error: any): string {
@@ -48,8 +49,13 @@ export class PaymentService {
       throw new BadRequestError("Amount must be greater than 0");
     }
 
-    const outstanding = pkg.price - student.totalPaid;
+    const effectivePrice = getEffectivePrice(student.matricNumber, pkg);
+    const outstanding = effectivePrice - student.totalPaid;
     if (outstanding <= 0) {
+      // Fix status for discounted students who are effectively fully paid
+      if (student.paymentStatus !== "FULLY_PAID" && student.totalPaid >= effectivePrice) {
+        await studentService.updatePaymentStatus(student._id.toString(), 0);
+      }
       throw new BadRequestError("Package already fully paid");
     }
 

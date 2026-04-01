@@ -3,9 +3,16 @@ import { z } from "zod";
 import studentService from "../services/student.service";
 import packageService from "../services/package.service";
 
+const matricNumberSchema = z
+  .string()
+  .regex(
+    /^(1904|2104)\d{5}$/,
+    "Matric number must start with 1904 or 2104 and contain exactly 9 digits with no letters",
+  );
+
 export const createStudentSchema = z.object({
   body: z.object({
-    matricNumber: z.string().min(5),
+    matricNumber: matricNumberSchema,
     fullName: z.string().min(2),
     gender: z.enum(["male", "female"]),
     packageCode: z.string().length(1),
@@ -17,7 +24,7 @@ export const createStudentSchema = z.object({
 
 export const selectPackageSchema = z.object({
   body: z.object({
-    matricNumber: z.string().min(5),
+    matricNumber: matricNumberSchema,
     packageCode: z.string().length(1),
     selectedDays: z.array(z.string()).optional(),
   }),
@@ -25,7 +32,7 @@ export const selectPackageSchema = z.object({
 
 export const upgradePackageSchema = z.object({
   body: z.object({
-    matricNumber: z.string().min(5),
+    matricNumber: matricNumberSchema,
     newPackageCode: z.string().length(1),
     selectedDays: z.array(z.string()).optional(),
   }),
@@ -33,7 +40,7 @@ export const upgradePackageSchema = z.object({
 
 export const downgradePackageSchema = z.object({
   body: z.object({
-    matricNumber: z.string().min(5),
+    matricNumber: matricNumberSchema,
     newPackageCode: z.string().length(1),
     selectedDays: z.array(z.string()).optional(),
   }),
@@ -41,7 +48,7 @@ export const downgradePackageSchema = z.object({
 
 export const getStudentSchema = z.object({
   params: z.object({
-    matricNumber: z.string(),
+    matricNumber: matricNumberSchema,
   }),
 });
 

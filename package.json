@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "ts-node scripts/seed.ts",
+    "purge:defaulting": "ts-node scripts/purge-defaulting.ts",
     "test": "jest --detectOpenHandles"
   },
   "keywords": [

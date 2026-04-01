@@ -6,6 +6,7 @@ import { NotFoundError, BadRequestError } from "../utils/errors";
 import packageService from "./package.service";
 import logger from "../utils/logger";
 import { EVENT_DAY_KEYS, EventDayKey } from "../constants/eventDays";
+import { getEffectivePrice } from "../constants/discounts";
 
 export class StudentService {
   private normalizeAndValidateDays(
@@ -284,12 +285,14 @@ export class StudentService {
       student.packageId._id.toString(),
     );
 
-    // Cap the credited amount to package price (handle overpayment)
-    const newTotalPaid = Math.min(student.totalPaid + amount, pkg.price);
+    const effectivePrice = getEffectivePrice(student.matricNumber, pkg);
+
+    // Cap the credited amount to effective price (handle overpayment + discounts)
+    const newTotalPaid = Math.min(student.totalPaid + amount, effectivePrice);
     student.totalPaid = newTotalPaid;
 
     // Update payment status
-    if (student.totalPaid >= pkg.price) {
+    if (student.totalPaid >= effectivePrice) {
       student.paymentStatus = PaymentStatus.FULLY_PAID;
     } else if (student.totalPaid > 0) {
       student.paymentStatus = PaymentStatus.PARTIALLY_PAID;
@@ -298,7 +301,7 @@ export class StudentService {
     }
 
     logger.info(
-      `Updated student ${student.matricNumber} payment: ₦${student.totalPaid} / ₦${pkg.price} (${student.paymentStatus})`,
+      `Updated student ${student.matricNumber} payment: ₦${student.totalPaid} / ₦${effectivePrice} (${student.paymentStatus})`,
     );
 
     return await student.save();
@@ -314,12 +317,14 @@ export class StudentService {
       student.packageId._id.toString(),
     );
 
+    const effectivePrice = getEffectivePrice(student.matricNumber, pkg);
+
     return {
       student,
       package: pkg,
       payments,
       totalPaid: student.totalPaid,
-      outstanding: Math.max(pkg.price - student.totalPaid, 0),
+      outstanding: Math.max(effectivePrice - student.totalPaid, 0),
     };
   }
 
