@@ -7,6 +7,7 @@ import studentService from "../services/student.service";
 import inviteService from "../services/invite.service";
 import mailService from "../services/mail.service";
 import packageService from "../services/package.service";
+import { getEffectivePrice } from "../constants/discounts";
 import Student from "../models/Student";
 import Payment from "../models/Payment";
 import { PaymentStatus, TransactionStatus, AuthRequest } from "../types";
@@ -99,7 +100,7 @@ export class AdminController {
       let outstandingTotal = 0;
       for (const student of students) {
         const pkg = student.packageId as any;
-        const outstanding = Math.max(pkg.price - student.totalPaid, 0);
+        const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
         outstandingTotal += outstanding;
       }
 

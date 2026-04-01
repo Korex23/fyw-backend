@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import studentService from "../services/student.service";
 import packageService from "../services/package.service";
+import { getEffectivePrice } from "../constants/discounts";
 
 const matricNumberSchema = z
   .string()
@@ -113,7 +114,7 @@ export class StudentController {
         student.packageId._id.toString(),
       );
 
-      const outstanding = Math.max(pkg.price - student.totalPaid, 0);
+      const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
 
       res.status(200).json({
         success: true,
@@ -175,7 +176,7 @@ export class StudentController {
         student.packageId._id.toString(),
       );
 
-      const outstanding = Math.max(pkg.price - student.totalPaid, 0);
+      const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
 
       res.status(200).json({
         success: true,
@@ -208,7 +209,7 @@ export class StudentController {
         student.packageId._id.toString(),
       );
 
-      const outstanding = Math.max(pkg.price - student.totalPaid, 0);
+      const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
 
       res.status(200).json({
         success: true,
