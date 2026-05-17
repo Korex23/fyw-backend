@@ -263,7 +263,7 @@ export class AdminController {
             ? student.selectedDays.join(", ")
             : "N/A",
         "Total Paid": student.totalPaid,
-        Outstanding: Math.max(student.packageId.price - student.totalPaid, 0),
+        Outstanding: Math.max(getEffectivePrice(student.matricNumber, student.packageId) - student.totalPaid, 0),
         "Payment Status": student.paymentStatus,
         "Has Invite": student.invites?.imageUrl ? "Yes" : "No",
         "Created At": new Date(student.createdAt).toISOString(),

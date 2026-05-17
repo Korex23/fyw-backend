@@ -60,7 +60,7 @@ export class PaymentService {
     }
 
     const reference = generateReference();
-    const chargeAmount = Math.ceil(amount * 1.02); // 2% processing fee
+    const chargeAmount = Math.ceil(amount / 0.98); // gross up so after Flutterwave's 2% cut we land on `amount`
 
     await Payment.create({
       studentId: student._id,
@@ -226,7 +226,8 @@ export class PaymentService {
     payment: IPayment,
     flutterwaveData: any,
   ): Promise<void> {
-    const amountInNaira = Number(flutterwaveData.amount);
+    // Use the stored net amount (not the gross Flutterwave charge) so the fee is not deducted from the student's balance
+    const amountInNaira = payment.amount;
 
     if (!Number.isFinite(amountInNaira) || amountInNaira <= 0) {
       throw new BadRequestError("Invalid payment amount from gateway");
