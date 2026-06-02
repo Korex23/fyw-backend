@@ -69,6 +69,55 @@ Frontend: show the price/balance using **`effectivePrice` and `outstanding`** fr
 
 See **`GROUP_REDIRECT_URI_PLAN.md`** — the redirect back from Flutterwave for a group payment now includes `type=group` and `groupId=<id>` query params so the frontend can route to the correct group status page instead of the payer's dashboard.
 
-## 6. Nothing else changes
+## 6. New admin actions: delete group & edit student
+
+Both require the admin `Authorization: Bearer <token>`.
+
+### Delete a group (and its members)
+
+```
+DELETE /api/admin/groups/:id
+```
+
+Deletes the group registration, **all 3 member student records, and their payments**. Irreversible — gate it behind a confirm dialog.
+
+**Response**
+```json
+{
+  "success": true,
+  "message": "Group deleted along with 3 member(s) and 2 payment(s).",
+  "data": { "deletedMembers": 3, "deletedPayments": 2 }
+}
+```
+
+Frontend: add a **Delete group** button on the group detail page (§B.3) → confirm modal → on success, navigate back to the groups list and toast the message.
+
+### Edit a student's details
+
+```
+PATCH /api/admin/students/:id
+```
+
+**Body** — send only the fields you're changing (all optional, but at least one required):
+```json
+{
+  "fullName": "Ada N. Obi",
+  "email": "ada.new@x.com",
+  "phone": "08030000000",
+  "gender": "female",
+  "department": "Civil Engineering",
+  "matricNumber": "190408026"
+}
+```
+
+- `matricNumber` must match `^(1904|2104)\d{5}$` and be unique — a clash returns `400 Matric number ... is already in use by another student`.
+- Only profile fields are editable here; package/payment state is untouched.
+- If the student is a group member, their name/matric/email are also synced into the group's member list automatically.
+
+**Response** → `200` with the updated `student` object.
+
+Frontend: add an **Edit** action on the student detail page with a form pre-filled from the current values; submit only changed fields.
+
+## 7. Nothing else changes
 
 Other endpoints, request bodies, and the register/pay/verify flow are unchanged.

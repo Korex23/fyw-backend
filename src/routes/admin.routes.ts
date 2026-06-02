@@ -2,6 +2,7 @@ import { Router } from "express";
 import adminController, {
   loginSchema,
   studentFiltersSchema,
+  updateStudentSchema,
 } from "../controllers/admin.controller";
 import { validate } from "../middlewares/validation.middleware";
 import { authenticate } from "../middlewares/auth.middleware";
@@ -39,6 +40,13 @@ router.get(
   adminController.getStudentDetails.bind(adminController),
 );
 
+router.patch(
+  "/students/:id",
+  authenticate,
+  validate(updateStudentSchema),
+  adminController.updateStudent.bind(adminController),
+);
+
 router.post(
   "/students/:id/resend-invite",
   authenticate,
@@ -62,6 +70,12 @@ router.get(
   "/groups/:id",
   authenticate,
   adminController.getGroupDetails.bind(adminController),
+);
+
+router.delete(
+  "/groups/:id",
+  authenticate,
+  adminController.deleteGroup.bind(adminController),
 );
 
 // Export

@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { env } from "../config/env";
 import studentService from "../services/student.service";
+import groupService from "../services/group.service";
 import inviteService from "../services/invite.service";
 import mailService from "../services/mail.service";
 import packageService from "../services/package.service";
@@ -30,6 +31,28 @@ export const studentFiltersSchema = z.object({
     packageCode: z.string().optional(),
     search: z.string().optional(),
   }),
+});
+
+export const updateStudentSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z
+    .object({
+      fullName: z.string().min(2).optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+      gender: z.enum(["male", "female"]).optional(),
+      department: z.string().optional(),
+      matricNumber: z
+        .string()
+        .regex(
+          /^(1904|2104)\d{5}$/,
+          "Matric number must start with 1904 or 2104 and contain exactly 9 digits",
+        )
+        .optional(),
+    })
+    .refine((b) => Object.keys(b).length > 0, {
+      message: "Provide at least one field to update",
+    }),
 });
 
 export class AdminController {
@@ -357,6 +380,44 @@ export class AdminController {
           members: membersWithDetails,
           payments,
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteGroup(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const result = await groupService.deleteGroup(id);
+
+      res.status(200).json({
+        success: true,
+        message: `Group deleted along with ${result.deletedMembers} member(s) and ${result.deletedPayments} payment(s).`,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateStudent(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const student = await studentService.updateStudentDetails(id, req.body);
+
+      res.status(200).json({
+        success: true,
+        message: "Student details updated successfully",
+        data: student,
       });
     } catch (error) {
       next(error);

@@ -164,6 +164,59 @@ export class StudentService {
     return student;
   }
 
+  // Admin: edit a student's profile fields. Does not touch package/payment state —
+  // those have their own flows (selectPackage, upgrade/downgrade, payments).
+  async updateStudentDetails(
+    id: string,
+    updates: {
+      fullName?: string;
+      email?: string;
+      phone?: string;
+      gender?: "male" | "female";
+      department?: string;
+      matricNumber?: string;
+    },
+  ): Promise<IStudent> {
+    const student = await this.getStudentById(id);
+
+    if (updates.matricNumber) {
+      const newMatric = updates.matricNumber.toUpperCase();
+      if (newMatric !== student.matricNumber) {
+        const clash = await Student.findOne({ matricNumber: newMatric });
+        if (clash) {
+          throw new BadRequestError(
+            `Matric number ${newMatric} is already in use by another student`,
+          );
+        }
+        student.matricNumber = newMatric;
+      }
+    }
+
+    if (updates.fullName !== undefined) student.fullName = updates.fullName;
+    if (updates.email !== undefined) student.email = updates.email;
+    if (updates.phone !== undefined) student.phone = updates.phone;
+    if (updates.gender !== undefined) student.gender = updates.gender;
+    if (updates.department !== undefined) student.department = updates.department;
+
+    await student.save();
+
+    // Keep the group's denormalized member copy in sync.
+    if (student.groupRegistrationId) {
+      await GroupRegistration.updateOne(
+        { _id: student.groupRegistrationId, "members.studentId": student._id },
+        {
+          $set: {
+            "members.$.fullName": student.fullName,
+            "members.$.matricNumber": student.matricNumber,
+            "members.$.email": student.email,
+          },
+        },
+      );
+    }
+
+    return student;
+  }
+
   async selectPackage(
     matricNumber: string,
     packageCode: string,

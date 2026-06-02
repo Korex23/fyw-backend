@@ -459,6 +459,34 @@ export class GroupService {
     if (!group) throw new NotFoundError("Group registration not found");
     return group;
   }
+
+  // Admin: delete a group along with all 3 member students and their payments.
+  async deleteGroup(
+    groupId: string,
+  ): Promise<{ deletedMembers: number; deletedPayments: number }> {
+    const group = await GroupRegistration.findById(groupId);
+    if (!group) throw new NotFoundError("Group registration not found");
+
+    const memberIds = group.members.map((m) => m.studentId);
+
+    const paymentResult = await Payment.deleteMany({
+      $or: [
+        { groupRegistrationId: group._id },
+        { studentId: { $in: memberIds } },
+      ],
+    });
+    const studentResult = await Student.deleteMany({ _id: { $in: memberIds } });
+    await GroupRegistration.findByIdAndDelete(groupId);
+
+    logger.info(
+      `Group ${groupId} deleted — ${studentResult.deletedCount} members, ${paymentResult.deletedCount} payments`,
+    );
+
+    return {
+      deletedMembers: studentResult.deletedCount ?? 0,
+      deletedPayments: paymentResult.deletedCount ?? 0,
+    };
+  }
 }
 
 export default new GroupService();
