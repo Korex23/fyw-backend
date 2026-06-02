@@ -13,6 +13,7 @@ import studentService from "./student.service";
 import packageService from "./package.service";
 import inviteService from "./invite.service";
 import mailService from "./mail.service";
+import groupService from "./group.service";
 import logger from "../utils/logger";
 import { env } from "../config/env";
 import { getEffectivePrice } from "../constants/discounts";
@@ -243,6 +244,12 @@ export class PaymentService {
     logger.info(
       `Processing successful payment: ${payment.reference} - N${amountInNaira}`,
     );
+
+    // Group payment: delegate all member processing to group service
+    if (payment.groupRegistrationId) {
+      await groupService.processGroupPayment(payment.groupRegistrationId.toString(), amountInNaira);
+      return;
+    }
 
     const student = await studentService.updatePaymentStatus(
       payment.studentId.toString(),

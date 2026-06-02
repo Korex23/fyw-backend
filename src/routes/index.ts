@@ -3,6 +3,7 @@ import studentRoutes from "./students.routes";
 import paymentRoutes from "./payment.routes";
 import adminRoutes from "./admin.routes";
 import webhookRoutes from "./webhook.routes";
+import groupRoutes from "./group.routes";
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use("/students", studentRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/admin", adminRoutes);
 router.use("/webhooks", webhookRoutes);
+router.use("/group", groupRoutes);
 
 export default router;

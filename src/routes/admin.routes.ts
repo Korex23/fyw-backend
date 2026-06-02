@@ -51,6 +51,19 @@ router.post(
   adminController.regenerateInvite.bind(adminController),
 );
 
+// Group registrations
+router.get(
+  "/groups",
+  authenticate,
+  adminController.getGroups.bind(adminController),
+);
+
+router.get(
+  "/groups/:id",
+  authenticate,
+  adminController.getGroupDetails.bind(adminController),
+);
+
 // Export
 router.get(
   "/export.csv",

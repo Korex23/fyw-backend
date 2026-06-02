@@ -1,0 +1,58 @@
+Status: 200
+
+Transactions:
+{
+  "status": "success",
+  "message": "Transactions fetched",
+  "meta": {
+    "page_info": {
+      "total": 1,
+      "current_page": 1,
+      "total_pages": 1
+    }
+  },
+  "data": [
+    {
+      "id": 2031358645,
+      "tx_ref": "FYW-1777075624577-95318573",
+      "flw_ref": "000004260425010825913361245738",
+      "device_fingerprint": "8dd1fb8632e7a5865ce544834ec2d977294a220f35db7cc3e484446004e0d5fe",
+      "amount": 40800,
+      "currency": "NGN",
+      "charged_amount": 40800,
+      "app_fee": 816,
+      "merchant_fee": 0,
+      "processor_response": "success",
+      "auth_model": "AUTH",
+      "ip": "105.113.118.152",
+      "narration": "Cambiar Technologies Limited",
+      "status": "successful",
+      "payment_type": "bank_transfer",
+      "created_at": "2026-04-25T00:08:30.000Z",
+      "amount_settled": 39922.8,
+      "customer": {
+        "id": 1338906233,
+        "email": "abigailotutu.ao@gmail.com",
+        "phone_number": "08000000000",
+        "name": "Abigail Otutu",
+        "created_at": "2026-04-25T00:03:59.000Z"
+      },
+      "account_id": 3413682,
+      "meta": {
+        "__CheckoutInitAddress": "https://fyw-pay.vercel.app/",
+        "__FingerprintConfidenceScore": "0.4",
+        "studentId": "69ec04b96d0324b014211630",
+        "matricNumber": "190407045",
+        "packageCode": "C",
+        "packageName": "Owambe Plus",
+        "selectedDays": "MONDAY,WEDNESDAY,THURSDAY",
+        "fullName": "Abigail Otutu",
+        "originatorname": "ABIGAIL AJIRI-OGHENE OTUTU",
+        "bankname": "UNITED BANK FOR AFRICA PLC",
+        "bankcode": "033",
+        "originatoramount": "N/A",
+        "originatoraccountnumber": "218*******56"
+      }
+    }
+  ]
+}

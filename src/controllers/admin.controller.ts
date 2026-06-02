@@ -13,6 +13,7 @@ import Payment from "../models/Payment";
 import { PaymentStatus, TransactionStatus, AuthRequest } from "../types";
 import { UnauthorizedError, BadRequestError } from "../utils/errors";
 import { Parser } from "json2csv";
+import GroupRegistration from "../models/GroupRegistration";
 
 export const loginSchema = z.object({
   body: z.object({
@@ -81,28 +82,50 @@ export class AdminController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const [totalStudents, fullyPaid, partiallyPaid, notPaid, totalRevenue] =
-        await Promise.all([
-          Student.countDocuments(),
-          Student.countDocuments({ paymentStatus: PaymentStatus.FULLY_PAID }),
-          Student.countDocuments({
-            paymentStatus: PaymentStatus.PARTIALLY_PAID,
-          }),
-          Student.countDocuments({ paymentStatus: PaymentStatus.NOT_PAID }),
-          Payment.aggregate([
-            { $match: { status: TransactionStatus.SUCCESS } },
-            { $group: { _id: null, total: { $sum: "$amount" } } },
-          ]),
-        ]);
+      const [
+        totalStudents,
+        fullyPaid,
+        partiallyPaid,
+        notPaid,
+        totalRevenue,
+        totalGroups,
+        fullyPaidGroups,
+        groupRevenue,
+      ] = await Promise.all([
+        Student.countDocuments(),
+        Student.countDocuments({ paymentStatus: PaymentStatus.FULLY_PAID }),
+        Student.countDocuments({ paymentStatus: PaymentStatus.PARTIALLY_PAID }),
+        Student.countDocuments({ paymentStatus: PaymentStatus.NOT_PAID }),
+        Payment.aggregate([
+          { $match: { status: TransactionStatus.SUCCESS } },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]),
+        GroupRegistration.countDocuments(),
+        GroupRegistration.countDocuments({ paymentStatus: "FULLY_PAID" }),
+        GroupRegistration.aggregate([
+          { $match: { paymentStatus: "FULLY_PAID" } },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
+      ]);
 
-      // Calculate outstanding
-      const students = await Student.find().populate("packageId");
+      // Individual students outstanding (exclude group members — their outstanding is at group level)
+      const individualStudents = await Student.find({
+        groupRegistrationId: { $exists: false },
+      }).populate("packageId");
       let outstandingTotal = 0;
-      for (const student of students) {
+      for (const student of individualStudents) {
         const pkg = student.packageId as any;
-        const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
-        outstandingTotal += outstanding;
+        outstandingTotal += Math.max(
+          getEffectivePrice(student.matricNumber, pkg) - student.totalPaid,
+          0,
+        );
       }
+      // Add outstanding from unpaid/partial groups
+      const groupOutstandingAgg = await GroupRegistration.aggregate([
+        { $match: { paymentStatus: { $ne: "FULLY_PAID" } } },
+        { $group: { _id: null, total: { $sum: { $subtract: ["$totalAmount", "$totalPaid"] } } } },
+      ]);
+      outstandingTotal += groupOutstandingAgg[0]?.total || 0;
 
       res.status(200).json({
         success: true,
@@ -113,6 +136,12 @@ export class AdminController {
           notPaidCount: notPaid,
           totalRevenue: totalRevenue[0]?.total || 0,
           outstandingTotal,
+          groups: {
+            totalGroups,
+            fullyPaidGroups,
+            pendingGroups: totalGroups - fullyPaidGroups,
+            groupRevenue: groupRevenue[0]?.total || 0,
+          },
         },
       });
     } catch (error) {
@@ -243,6 +272,93 @@ export class AdminController {
     }
   }
 
+  async getGroups(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const page = parseInt((req.query.page as string) || "1");
+      const limit = parseInt((req.query.limit as string) || "20");
+      const status = req.query.status as string | undefined;
+
+      const query: any = {};
+      if (status === "FULLY_PAID" || status === "NOT_PAID") {
+        query.paymentStatus = status;
+      }
+
+      const skip = (page - 1) * limit;
+      const [groups, total] = await Promise.all([
+        GroupRegistration.find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        GroupRegistration.countDocuments(query),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          groups,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getGroupDetails(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const group = await GroupRegistration.findById(id).lean();
+      if (!group) {
+        throw new BadRequestError("Group registration not found");
+      }
+
+      const membersWithDetails = await Promise.all(
+        group.members.map(async (m) => {
+          const student = await Student.findById(m.studentId)
+            .populate("packageId")
+            .lean();
+          return {
+            ...m,
+            paymentStatus: student?.paymentStatus ?? "NOT_PAID",
+            totalPaid: student?.totalPaid ?? 0,
+            hasInvite: !!student?.invites?.imageUrl,
+            inviteUrl: student?.invites?.imageUrl,
+            studentId: m.studentId,
+          };
+        }),
+      );
+
+      const payments = await Payment.find({ groupRegistrationId: id })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          ...group,
+          members: membersWithDetails,
+          payments,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async exportCSV(
     _req: AuthRequest,
     res: Response,
@@ -258,6 +374,8 @@ export class AdminController {
         Phone: String(student.phone) || "N/A",
         Package: student.packageId.name,
         "Package Price": student.packageId.price,
+        "Registration Type": student.groupRegistrationId ? "Group" : "Individual",
+        "Group ID": student.groupRegistrationId ? student.groupRegistrationId.toString() : "N/A",
         "Selected Days":
           student.selectedDays && student.selectedDays.length > 0
             ? student.selectedDays.join(", ")

@@ -540,3 +540,391 @@ async function apiCall(url, options) {
 | `T`     | Array with **exactly 2 items** from Mon–Thu | e.g. `["MONDAY", "WEDNESDAY"]` — Friday must not be included |
 | `C`     | Array with **exactly 1 item** (the non-Friday day) | e.g. `["MONDAY"]` — Friday is added automatically by the backend |
 | `F`     | Omit or send `[]` | All days are automatic |
+
+---
+
+## 9. Group Package
+
+### 9.1 What it is
+
+3 people register together and pay **₦150,000 total** (not per person). They all get the **Full Experience** package (all 5 days). Payment can be split across multiple transactions — partial payments are supported just like individual packages.
+
+One person fills the form for all 3 members and initiates payment. When the group reaches ₦150,000 total, every member gets their own personalised invite email.
+
+---
+
+### 9.2 User journey
+
+```
+1. Group Registration Form
+   └─ Collect details for all 3 members
+   └─ POST /api/group/register
+   └─ Store returned groupId
+
+2. Payment
+   └─ Show outstanding balance (₦150,000 initially)
+   └─ Let payer enter an amount (up to outstanding)
+   └─ POST /api/group/:groupId/pay
+   └─ Redirect browser to returned authorization_url (Flutterwave)
+
+3. After Flutterwave redirects back
+   └─ GET /api/payments/verify?reference=...   ← same endpoint as individual payments
+   └─ Check payment.status
+   └─ GET /api/group/:groupId  ← show updated group status
+
+4. Repeat step 2 if group.paymentStatus is still "PARTIALLY_PAID"
+```
+
+The verify redirect URL (configured on the backend) must point to your existing `/payment/verify` page — **no new page needed** for verification.
+
+---
+
+### 9.3 Step 1 — Register the group
+
+**`POST /api/group/register`**
+
+Collect one form with 3 member sub-forms. `payerEmail` is the email shown on the Flutterwave checkout (usually the first member's email, but you can let the user type a separate payer email).
+
+**Request**
+```json
+{
+  "payerEmail": "john@example.com",
+  "members": [
+    {
+      "matricNumber": "190408026",
+      "fullName": "John Doe",
+      "gender": "male",
+      "email": "john@example.com",
+      "phone": "08012345678"
+    },
+    {
+      "matricNumber": "190408027",
+      "fullName": "Jane Smith",
+      "gender": "female",
+      "email": "jane@example.com",
+      "phone": "08087654321"
+    },
+    {
+      "matricNumber": "190408028",
+      "fullName": "Bob Jones",
+      "gender": "male",
+      "email": "bob@example.com",
+      "phone": "08098765432"
+    }
+  ]
+}
+```
+
+**Success response (200)**
+```json
+{
+  "success": true,
+  "message": "Group registered successfully. Use the groupId to initialize payment.",
+  "data": {
+    "groupId": "6650abc123def456",
+    "totalAmount": 150000,
+    "outstanding": 150000,
+    "members": [
+      { "matricNumber": "190408026", "fullName": "John Doe", "email": "john@example.com" },
+      { "matricNumber": "190408027", "fullName": "Jane Smith", "email": "jane@example.com" },
+      { "matricNumber": "190408028", "fullName": "Bob Jones", "email": "bob@example.com" }
+    ]
+  }
+}
+```
+
+**What to do with the response:**
+- Save `data.groupId` — you need it for the pay step.
+- Save it in `localStorage` or component state so a page refresh doesn't lose it.
+- Redirect the user to the group payment page, passing `groupId`.
+
+---
+
+### 9.4 Step 2 — Initialize a payment
+
+**`POST /api/group/:groupId/pay`**
+
+Called every time the group wants to make a payment (first time or subsequent partial payments).
+
+**Request**
+```json
+{
+  "amount": 75000,
+  "payerEmail": "john@example.com"
+}
+```
+
+- `amount` — how much they want to pay this session. Must be > 0 and ≤ outstanding.
+- `payerEmail` — whose name/email appears on the Flutterwave payment form. Typically the first member's email, or whoever is physically paying.
+
+**Success response (200)**
+```json
+{
+  "success": true,
+  "message": "Group payment initialized successfully",
+  "data": {
+    "authorization_url": "https://checkout.flutterwave.com/v3/hosted/pay/abc123",
+    "reference": "FYW-1716900000000-A1B2C3D4",
+    "amount": 75000,
+    "outstanding": 75000
+  }
+}
+```
+
+**What to do with the response:**
+```js
+window.location.href = data.authorization_url;
+// Flutterwave handles payment, then redirects to your FLUTTERWAVE_REDIRECT_URL
+// with ?reference=FYW-... appended as a query param
+```
+
+---
+
+### 9.5 Step 3 — Verify after Flutterwave redirects
+
+After Flutterwave redirects back to your site (same URL as individual payments), call:
+
+**`GET /api/payments/verify?reference=FYW-1716900000000-A1B2C3D4`**
+
+This is the **same existing endpoint** — no change needed on the frontend for this step.
+
+**Response (200)**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "success",
+    "amount": 75000,
+    ...
+  }
+}
+```
+
+After verifying, fetch the group status to show the user the updated progress:
+
+**`GET /api/group/:groupId`**
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupId": "6650abc123def456",
+    "paymentStatus": "PARTIALLY_PAID",
+    "totalAmount": 150000,
+    "totalPaid": 75000,
+    "outstanding": 75000,
+    "payerEmail": "john@example.com",
+    "members": [
+      {
+        "matricNumber": "190408026",
+        "fullName": "John Doe",
+        "email": "john@example.com",
+        "paymentStatus": "PARTIALLY_PAID",
+        "hasInvite": false,
+        "inviteUrl": null
+      },
+      ...
+    ],
+    "createdAt": "2024-05-28T10:00:00.000Z"
+  }
+}
+```
+
+**`paymentStatus` values:**
+| Value | Meaning |
+|---|---|
+| `"NOT_PAID"` | No payment made yet |
+| `"PARTIALLY_PAID"` | Some payment made, still outstanding |
+| `"FULLY_PAID"` | ₦150,000 reached — all invites generated and emailed |
+
+When `paymentStatus === "FULLY_PAID"`, show each member's `inviteUrl` download link.
+
+---
+
+### 9.6 Suggested UI flow
+
+#### Page: `/group/register`
+
+```
+Group Package Registration
+──────────────────────────
+₦150,000 for 3 people • Full Experience • All 5 days
+
+Member 1 (Payer)          Member 2                  Member 3
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│ Matric Number   │       │ Matric Number   │       │ Matric Number   │
+│ Full Name       │       │ Full Name       │       │ Full Name       │
+│ Gender          │       │ Gender          │       │ Gender          │
+│ Email           │       │ Email           │       │ Email           │
+│ Phone           │       │ Phone           │       │ Phone           │
+└─────────────────┘       └─────────────────┘       └─────────────────┘
+
+Payer Email: [john@example.com]   ← email for Flutterwave checkout
+
+                    [Register Group →]
+```
+
+#### Page: `/group/:groupId/pay` (or `/group/:groupId/dashboard`)
+
+```
+Group Payment
+─────────────
+3 members • Full Experience Package
+
+  Progress
+  ████████░░░░░░░░  50% — ₦75,000 paid of ₦150,000
+
+  Outstanding: ₦75,000
+
+  Amount to pay now: [75000      ]
+  Payer email:       [john@example.com]
+
+                    [Pay Now →]
+```
+
+Show members' invite download buttons when `paymentStatus === "FULLY_PAID"`:
+
+```
+✅ Group Fully Paid!
+
+  John Doe        [Download Invite]
+  Jane Smith      [Download Invite]
+  Bob Jones       [Download Invite]
+```
+
+---
+
+### 9.7 Where to persist `groupId`
+
+The `groupId` must survive a Flutterwave redirect (which is a full page navigation).
+
+**Option A — URL param (recommended)**
+Pass `groupId` as a query param on the Flutterwave redirect URL:
+```
+https://yoursite.com/payment/verify?reference=FYW-...&groupId=6650abc123
+```
+Read it from the URL on the verify page and call `GET /api/group/:groupId` after verifying.
+
+**Option B — localStorage**
+```js
+localStorage.setItem('pendingGroupId', groupId);
+// On verify page:
+const groupId = localStorage.getItem('pendingGroupId');
+```
+
+---
+
+### 9.8 Error reference
+
+#### `POST /api/group/register`
+
+**Validation errors — Shape A (400)**
+
+| `field` | `message` | Cause |
+|---------|-----------|-------|
+| `body.members` | `"Array must contain exactly 3 element(s)"` | Not exactly 3 members |
+| `body.members[0].matricNumber` | `"Invalid"` | Wrong format |
+| `body.members[0].fullName` | `"String must contain at least 2 character(s)"` | Name too short |
+| `body.members[0].gender` | `"Invalid enum value. Expected 'male' \| 'female'"` | Wrong gender value |
+| `body.members[0].email` | `"Invalid email"` | Malformed email |
+| `body.payerEmail` | `"Required"` | Missing payer email |
+| `body.payerEmail` | `"Invalid email"` | Malformed payer email |
+
+**App errors — Shape B**
+
+| Status | `message` | Cause |
+|--------|-----------|-------|
+| `400` | `"A group must have exactly 3 members"` | Wrong member count |
+| `400` | `"All 3 members must have different matric numbers"` | Duplicate matric numbers |
+| `400` | `"Student 190408026 has already fully paid and cannot be re-registered"` | One member already fully paid individually |
+
+---
+
+#### `POST /api/group/:groupId/pay`
+
+**Validation errors — Shape A (400)**
+
+| `field` | `message` | Cause |
+|---------|-----------|-------|
+| `body.amount` | `"Required"` | Amount missing |
+| `body.amount` | `"Number must be greater than 0"` | Zero or negative |
+| `body.payerEmail` | `"Required"` | Email missing |
+| `body.payerEmail` | `"Invalid email"` | Malformed email |
+
+**App errors — Shape B**
+
+| Status | `message` | Cause |
+|--------|-----------|-------|
+| `404` | `"Group registration not found"` | Invalid `groupId` |
+| `400` | `"This group has already fully paid"` | Nothing left to pay |
+| `400` | `"Amount exceeds outstanding balance of ₦75,000"` | Amount > outstanding |
+| `400` | `"FLUTTERWAVE_REDIRECT_URL must be a public URL (localhost is invalid)"` | Backend config issue |
+| `400` | Varies | Flutterwave-specific error |
+| `429` | `"Too many payment requests, please try again later"` | Rate limited |
+
+---
+
+#### `GET /api/group/:groupId`
+
+**App errors — Shape B**
+
+| Status | `message` | Cause |
+|--------|-----------|-------|
+| `404` | `"Group registration not found"` | Invalid `groupId` |
+
+---
+
+### 9.9 Full code example
+
+```js
+// 1. Register group
+async function registerGroup(members, payerEmail) {
+  const res = await fetch('/api/group/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ members, payerEmail }),
+  });
+  const body = await res.json();
+  if (!body.success) throw new Error(body.message);
+  return body.data; // { groupId, totalAmount, outstanding, members }
+}
+
+// 2. Initialize payment
+async function payGroup(groupId, amount, payerEmail) {
+  const res = await fetch(`/api/group/${groupId}/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, payerEmail }),
+  });
+  const body = await res.json();
+  if (!body.success) throw new Error(body.message);
+  // Redirect to Flutterwave
+  window.location.href = body.data.authorization_url;
+}
+
+// 3. After redirect — verify payment (same as individual)
+async function verifyAndFetchGroup(reference, groupId) {
+  const verifyRes = await fetch(`/api/payments/verify?reference=${reference}`);
+  const verifyBody = await verifyRes.json();
+  if (!verifyBody.success) throw new Error(verifyBody.message);
+
+  const groupRes = await fetch(`/api/group/${groupId}`);
+  const groupBody = await groupRes.json();
+  if (!groupBody.success) throw new Error(groupBody.message);
+  return groupBody.data;
+}
+
+// Usage on your verify page:
+const params = new URLSearchParams(window.location.search);
+const reference = params.get('reference');
+const groupId   = params.get('groupId'); // if you passed it in the redirect URL
+
+if (reference && groupId) {
+  const group = await verifyAndFetchGroup(reference, groupId);
+  if (group.paymentStatus === 'FULLY_PAID') {
+    showInvites(group.members);
+  } else {
+    showPayAgainButton(group.groupId, group.outstanding);
+  }
+}
+```

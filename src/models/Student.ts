@@ -13,6 +13,7 @@ export interface IStudent extends Document {
   selectedDays: EventDayKey[];
   totalPaid: number;
   paymentStatus: PaymentStatus;
+  groupRegistrationId?: Types.ObjectId;
   invites?: {
     imageUrl?: string;
     generatedAt?: Date;
@@ -73,6 +74,10 @@ const StudentSchema = new Schema<IStudent>(
       type: String,
       enum: Object.values(PaymentStatus),
       default: PaymentStatus.NOT_PAID,
+    },
+    groupRegistrationId: {
+      type: Schema.Types.ObjectId,
+      ref: "GroupRegistration",
     },
     invites: {
       imageUrl: String,

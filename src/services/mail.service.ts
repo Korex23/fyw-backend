@@ -654,6 +654,136 @@ export class MailService {
     }
   }
 
+  async sendGroupPartialPaymentEmail(
+    to: string,
+    fullName: string,
+    amountPaid: number,
+    groupTotalPaid: number,
+    groupOutstanding: number,
+  ): Promise<void> {
+    const mailOptions = {
+      from: env.EMAIL_FROM,
+      to,
+      subject: "✅ Group Payment Received - Final Year Week",
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ULES FYW PAY - Group Payment Received</title>
+  <style>
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    body { margin: 0; padding: 0; width: 100% !important; }
+
+    .wrapper { background: #F9FAFB; padding: 24px 12px; font-family: Arial, sans-serif; color: #0F172A; }
+    .container { max-width: 640px; margin: 0 auto; }
+    .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden; box-shadow: 0 6px 24px -10px rgba(0,0,0,0.05); }
+    .brandbar { padding: 18px 22px; background: rgba(255,255,255,0.9); border-bottom: 1px solid #E5E7EB; }
+    .brand { font-weight: 800; letter-spacing: -0.02em; font-size: 18px; color: #1e293b; }
+    .brand .g { color: #1B5E20; }
+    .brand .r { color: #8B0000; }
+    .hero { padding: 22px; background: radial-gradient(circle at 15% 20%, rgba(27,94,32,0.10) 0%, rgba(27,94,32,0) 60%), radial-gradient(circle at 85% 30%, rgba(139,0,0,0.10) 0%, rgba(139,0,0,0) 55%), #ffffff; }
+    .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; background: rgba(27,94,32,0.08); color: #1B5E20; border: 1px solid rgba(27,94,32,0.18); }
+    .title { margin: 14px 0 6px; font-size: 26px; font-weight: 900; letter-spacing: -0.03em; color: #0f172a; }
+    .subtitle { margin: 0; font-size: 14px; color: #64748B; font-weight: 600; line-height: 1.6; }
+    .content { padding: 22px; background: #ffffff; }
+    .p { margin: 0 0 12px; font-size: 14px; line-height: 1.7; color: #334155; font-weight: 500; }
+    .panel { margin: 16px 0; padding: 16px; border-radius: 14px; border: 1px solid #E5E7EB; background: #F8FAFC; }
+    .panel-title { margin: 0 0 12px; font-size: 11px; font-weight: 900; letter-spacing: 0.20em; text-transform: uppercase; color: #94A3B8; }
+    .row { width: 100%; border-collapse: collapse; }
+    .row td { padding: 10px 0; border-bottom: 1px solid #E2E8F0; font-size: 14px; }
+    .row tr:last-child td { border-bottom: none; }
+    .label { color: #64748B; font-weight: 700; }
+    .value { color: #0F172A; font-weight: 900; text-align: right; white-space: nowrap; }
+    .progressWrap { margin-top: 14px; }
+    .progressLabel { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 6px; }
+    .progressBar { height: 10px; border-radius: 999px; background: #E2E8F0; overflow: hidden; }
+    .progressFill { height: 100%; border-radius: 999px; background: #1B5E20; }
+    .outstandingWrap { margin-top: 12px; border-radius: 12px; padding: 14px; background: rgba(139,0,0,0.06); border: 1px solid rgba(139,0,0,0.16); }
+    .outstandingLabel { font-size: 11px; font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(139,0,0,0.85); margin: 0 0 6px; }
+    .outstandingValue { font-size: 22px; font-weight: 900; color: #8B0000; margin: 0; }
+    .ctaWrap { text-align: center; padding: 18px 0 6px; }
+    .btn { display: inline-block; padding: 14px 18px; border-radius: 12px; background: #1B5E20; color: #ffffff !important; text-decoration: none; font-weight: 900; font-size: 14px; }
+    .footer { padding: 16px 22px; border-top: 1px solid #E5E7EB; background: #ffffff; text-align: center; }
+    .footer p { margin: 0; font-size: 12px; color: #94A3B8; font-weight: 600; line-height: 1.7; }
+    @media (max-width: 480px) { .title { font-size: 22px; } .btn { width: 100%; box-sizing: border-box; } }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="card">
+        <div class="brandbar">
+          <div class="brand">ULES <span class="g">FYW</span> <span class="r">PAY</span></div>
+        </div>
+        <div class="hero">
+          <span class="badge">Group Payment Received</span>
+          <h1 class="title">Thanks, ${fullName}! 🎉</h1>
+          <p class="subtitle">Your group has made a payment towards the <strong>Full Experience Package</strong>. Keep going — you're almost there!</p>
+        </div>
+        <div class="content">
+          <p class="p">Hello <strong>${fullName}</strong>, here's a summary of your group's payment progress.</p>
+
+          <div class="panel">
+            <p class="panel-title">Group Payment Summary</p>
+            <table class="row" role="presentation">
+              <tr>
+                <td class="label">Amount Just Paid</td>
+                <td class="value">${formatCurrency(amountPaid * 100)}</td>
+              </tr>
+              <tr>
+                <td class="label">Group Total Paid</td>
+                <td class="value">${formatCurrency(groupTotalPaid * 100)}</td>
+              </tr>
+              <tr>
+                <td class="label">Group Package Total</td>
+                <td class="value">${formatCurrency(150000 * 100)}</td>
+              </tr>
+            </table>
+
+            <div class="progressWrap">
+              <div class="progressLabel">
+                <span>Progress</span>
+                <span>${Math.round((groupTotalPaid / 150000) * 100)}%</span>
+              </div>
+              <div class="progressBar">
+                <div class="progressFill" style="width: ${Math.min(Math.round((groupTotalPaid / 150000) * 100), 100)}%;"></div>
+              </div>
+            </div>
+
+            <div class="outstandingWrap">
+              <p class="outstandingLabel">Group Outstanding Balance</p>
+              <p class="outstandingValue">${formatCurrency(groupOutstanding * 100)}</p>
+            </div>
+          </div>
+
+          <p class="p">Once your group completes the full ₦150,000 payment, all 3 members will receive their personalised invitations.</p>
+
+          <div class="ctaWrap">
+            <a class="btn" href="${env.FRONTEND_URL}/login">Complete Group Payment</a>
+          </div>
+        </div>
+        <div class="footer">
+          <p><strong style="color:#1B5E20;">ULES</strong> • Final Year Week Planning Committee</p>
+          <p>If you have questions, reply to this email or contact support.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      logger.info(`Group partial payment email sent to ${to}`);
+    } catch (error) {
+      logger.error("Failed to send group partial payment email:", error);
+    }
+  }
+
   async resendInvite(
     to: string,
     fullName: string,
