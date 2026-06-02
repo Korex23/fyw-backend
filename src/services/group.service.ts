@@ -12,7 +12,8 @@ import logger from "../utils/logger";
 import { env } from "../config/env";
 import { EVENT_DAY_KEYS } from "../constants/eventDays";
 
-const GROUP_TOTAL = 150000;
+// 3 members × ₦60,000 = ₦180,000, less a 10% group discount = ₦162,000
+const GROUP_TOTAL = 162000;
 const GROUP_PACKAGE_CODE = "F";
 const GROUP_SIZE = 3;
 // Each member's honest share of the group total (keeps per-student totals summing to GROUP_TOTAL)
@@ -367,10 +368,18 @@ export class GroupService {
     group.paymentStatus = collected > 0 ? "PARTIALLY_PAID" : "NOT_PAID";
     await group.save();
 
+    // Split what's collected evenly across members so each member's record shows
+    // their own paid/left-to-pay (capped at their share). Admin & status views read this.
+    const memberPaidShare = Math.min(
+      Math.round(collected / GROUP_SIZE),
+      GROUP_MEMBER_SHARE,
+    );
+
     await Promise.all(
       group.members.map(async (member) => {
         await Student.findByIdAndUpdate(member.studentId, {
           paymentStatus: PaymentStatus.PARTIALLY_PAID,
+          totalPaid: memberPaidShare,
         });
 
         if (member.email) {

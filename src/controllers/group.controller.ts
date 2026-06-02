@@ -99,14 +99,19 @@ export class GroupController {
       const { groupId } = req.params;
       const group = await groupService.getGroupById(groupId);
 
+      const memberShare = Math.round(group.totalAmount / group.members.length);
       const membersWithStatus = await Promise.all(
         group.members.map(async (m) => {
           const student = await Student.findById(m.studentId);
+          const memberPaid = student?.totalPaid ?? 0;
           return {
             matricNumber: m.matricNumber,
             fullName: m.fullName,
             email: m.email,
             paymentStatus: student?.paymentStatus ?? "NOT_PAID",
+            share: memberShare,
+            totalPaid: memberPaid,
+            outstanding: Math.max(memberShare - memberPaid, 0),
             hasInvite: !!student?.invites?.imageUrl,
             inviteUrl: student?.invites?.imageUrl,
           };

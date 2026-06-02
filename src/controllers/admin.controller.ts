@@ -326,15 +326,19 @@ export class AdminController {
         throw new BadRequestError("Group registration not found");
       }
 
+      const memberShare = Math.round(group.totalAmount / group.members.length);
       const membersWithDetails = await Promise.all(
         group.members.map(async (m) => {
           const student = await Student.findById(m.studentId)
             .populate("packageId")
             .lean();
+          const memberPaid = student?.totalPaid ?? 0;
           return {
             ...m,
             paymentStatus: student?.paymentStatus ?? "NOT_PAID",
-            totalPaid: student?.totalPaid ?? 0,
+            totalPaid: memberPaid,
+            share: memberShare,
+            outstanding: Math.max(memberShare - memberPaid, 0),
             hasInvite: !!student?.invites?.imageUrl,
             inviteUrl: student?.invites?.imageUrl,
             studentId: m.studentId,

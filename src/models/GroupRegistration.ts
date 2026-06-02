@@ -38,7 +38,7 @@ const GroupRegistrationSchema = new Schema<IGroupRegistration>(
       },
     },
     payerEmail: { type: String, required: true, trim: true, lowercase: true },
-    totalAmount: { type: Number, required: true, default: 150000 },
+    totalAmount: { type: Number, required: true, default: 162000 },
     totalPaid: { type: Number, required: true, default: 0, min: 0 },
     paymentStatus: {
       type: String,
