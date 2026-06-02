@@ -661,6 +661,12 @@ export class MailService {
     groupTotalPaid: number,
     groupOutstanding: number,
   ): Promise<void> {
+    // Derive the package total from the figures passed in so this stays correct
+    // regardless of the group price (and for legacy groups on the old total).
+    const groupPackageTotal = groupTotalPaid + groupOutstanding;
+    const progressPct = groupPackageTotal
+      ? Math.min(Math.round((groupTotalPaid / groupPackageTotal) * 100), 100)
+      : 0;
     const mailOptions = {
       from: env.EMAIL_FROM,
       to,
@@ -739,17 +745,17 @@ export class MailService {
               </tr>
               <tr>
                 <td class="label">Group Package Total</td>
-                <td class="value">${formatCurrency(150000 * 100)}</td>
+                <td class="value">${formatCurrency(groupPackageTotal * 100)}</td>
               </tr>
             </table>
 
             <div class="progressWrap">
               <div class="progressLabel">
                 <span>Progress</span>
-                <span>${Math.round((groupTotalPaid / 150000) * 100)}%</span>
+                <span>${progressPct}%</span>
               </div>
               <div class="progressBar">
-                <div class="progressFill" style="width: ${Math.min(Math.round((groupTotalPaid / 150000) * 100), 100)}%;"></div>
+                <div class="progressFill" style="width: ${progressPct}%;"></div>
               </div>
             </div>
 
@@ -759,7 +765,7 @@ export class MailService {
             </div>
           </div>
 
-          <p class="p">Once your group completes the full ₦150,000 payment, all 3 members will receive their personalised invitations.</p>
+          <p class="p">Once your group completes the full ${formatCurrency(groupPackageTotal * 100)} payment, all 3 members will receive their personalised invitations.</p>
 
           <div class="ctaWrap">
             <a class="btn" href="${env.FRONTEND_URL}/login">Complete Group Payment</a>

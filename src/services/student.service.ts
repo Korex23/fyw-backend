@@ -1,6 +1,7 @@
 import Student, { IStudent } from "../models/Student";
 import { IPackage } from "../models/Package";
 import Payment from "../models/Payment";
+import GroupRegistration from "../models/GroupRegistration";
 import { PaymentStatus } from "../types";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import packageService from "./package.service";
@@ -317,7 +318,15 @@ export class StudentService {
       student.packageId._id.toString(),
     );
 
-    const effectivePrice = getEffectivePrice(student.matricNumber, pkg);
+    // Group members owe their share of the group total (e.g. ₦54,000), not the
+    // standalone package price (₦60,000). Reflect that in the individual view.
+    let effectivePrice = getEffectivePrice(student.matricNumber, pkg);
+    if (student.groupRegistrationId) {
+      const group = await GroupRegistration.findById(student.groupRegistrationId);
+      if (group) {
+        effectivePrice = Math.round(group.totalAmount / group.members.length);
+      }
+    }
 
     return {
       student,
@@ -325,6 +334,7 @@ export class StudentService {
       payments,
       totalPaid: student.totalPaid,
       outstanding: Math.max(effectivePrice - student.totalPaid, 0),
+      effectivePrice,
     };
   }
 

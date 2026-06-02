@@ -42,6 +42,15 @@ export class PaymentService {
     reference: string;
   }> {
     const student = await studentService.getStudentByMatricNumber(studentId);
+
+    // Group members can't pay individually — their balance is settled at the group
+    // level via /api/group/:groupId/pay.
+    if (student.groupRegistrationId) {
+      throw new BadRequestError(
+        "This student is part of a group registration and must pay through the group.",
+      );
+    }
+
     const pkg = await packageService.getPackageById(
       student.packageId._id.toString(),
     );

@@ -229,14 +229,20 @@ export class GroupService {
     const payerStudent = await Student.findById(payerMember.studentId);
     if (!payerStudent) throw new NotFoundError("Payer student record not found");
 
-    const redirectUrl =
-      env.FLUTTERWAVE_REDIRECT_URL || `${env.FRONTEND_URL}/payment/verify`;
-    const redirectHost = new URL(redirectUrl).hostname.toLowerCase();
+    const redirectUrlObj = new URL(
+      env.FLUTTERWAVE_REDIRECT_URL || `${env.FRONTEND_URL}/payment/verify`,
+    );
+    const redirectHost = redirectUrlObj.hostname.toLowerCase();
     if (redirectHost === "localhost" || redirectHost === "127.0.0.1") {
       throw new BadRequestError(
         "FLUTTERWAVE_REDIRECT_URL must be a public URL (localhost is invalid)",
       );
     }
+    // Tag the redirect so the frontend knows this is a group payment and which
+    // group to route back to once Flutterwave appends its own params (tx_ref, etc).
+    redirectUrlObj.searchParams.set("type", "group");
+    redirectUrlObj.searchParams.set("groupId", groupId);
+    const redirectUrl = redirectUrlObj.toString();
 
     const reference = generateReference();
     const chargeAmount = Math.ceil(amount / 0.98);

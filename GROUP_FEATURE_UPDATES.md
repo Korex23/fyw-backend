@@ -46,6 +46,29 @@ Example member object:
 
 > Note: group payments aren't tied to a single member — a part-payment is split **evenly** across all 3 members, so each member's `totalPaid`/`outstanding` move together. On full payment every member shows `totalPaid: 54000`, `outstanding: 0`.
 
-## 3. Nothing else changes
+## 3. Group members can't pay individually
 
-Endpoints, request bodies, the register/pay/verify flow, and all error messages are unchanged. Just the amount and the new per-member fields.
+A student who belongs to a group can no longer use the normal individual payment flow. `POST /api/payments/initialize` for such a student returns `400`:
+
+```
+This student is part of a group registration and must pay through the group.
+```
+
+Frontend: if you offer an individual "Pay" action anywhere a group member could appear, hide/disable it and point them to the group payment flow (`POST /api/group/:groupId/pay`).
+
+## 4. Admin individual view shows the group share
+
+`GET /api/admin/students/:id` now returns the member's **group share** instead of the standalone package price for group members:
+
+- `effectivePrice` — new field: `54000` for a group member (was effectively `60000` via `package.price`)
+- `outstanding` — now computed against the share (`effectivePrice − totalPaid`)
+
+Frontend: show the price/balance using **`effectivePrice` and `outstanding`** from the response, not `package.price`. For a non-group student `effectivePrice` equals their normal (possibly discounted) package price, so it's safe to use everywhere.
+
+## 5. Group payment redirect carries a group flag
+
+See **`GROUP_REDIRECT_URI_PLAN.md`** — the redirect back from Flutterwave for a group payment now includes `type=group` and `groupId=<id>` query params so the frontend can route to the correct group status page instead of the payer's dashboard.
+
+## 6. Nothing else changes
+
+Other endpoints, request bodies, and the register/pay/verify flow are unchanged.
