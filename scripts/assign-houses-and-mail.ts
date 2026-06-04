@@ -12,10 +12,12 @@
  * unless --resend is passed.
  *
  * Usage:
- *   npm run houses:mail                 # assign + email
- *   npm run houses:mail -- --dry        # preview, no writes, no email
- *   npm run houses:mail -- --fully-paid # restrict to FULLY_PAID students
- *   npm run houses:mail -- --resend     # re-send even if already emailed
+ *   npm run houses:mail                  # DRY RUN (default) — no email, no writes
+ *   npm run houses:mail -- --send        # actually assign + email
+ *   npm run houses:mail -- --send --fully-paid  # restrict to FULLY_PAID students
+ *   npm run houses:mail -- --send --resend      # re-send even if already emailed
+ *
+ * Sending is opt-in: you MUST pass --send (after `--`). Anything else is a dry run.
  */
 import mongoose from "mongoose";
 import { env } from "../src/config/env";
@@ -29,7 +31,14 @@ import {
 import mailService from "../src/services/mail.service";
 import logger from "../src/utils/logger";
 
-const dryRun = process.argv.includes("--dry");
+// SAFETY: sending is opt-in. Without an explicit --send (or --live) flag this
+// script ALWAYS runs as a dry run — it never sends email or writes to the DB.
+// This guards against npm swallowing flags: `npm run houses:mail --dry` does
+// NOT pass --dry to the script, but the default-dry behaviour keeps it safe.
+// To actually send:  npm run houses:mail -- --send
+const live =
+  process.argv.includes("--send") || process.argv.includes("--live");
+const dryRun = !live;
 const resend = process.argv.includes("--resend");
 const fullyPaidOnly = process.argv.includes("--fully-paid");
 
@@ -57,6 +66,12 @@ function leastPopulatedHouse(counts: Record<HouseName, number>): HouseName {
 }
 
 async function run() {
+  if (dryRun) {
+    logger.info("🧪 DRY RUN — no emails will be sent and nothing will be written. Pass `-- --send` to go live.");
+  } else {
+    logger.warn("🚨 LIVE MODE — real emails will be sent and the database will be updated.");
+  }
+
   await mongoose.connect(env.MONGODB_URI);
   logger.info("✅ Connected to MongoDB");
 
