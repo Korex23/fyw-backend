@@ -4,8 +4,9 @@
  * (ported into src/constants/houses.ts).
  *
  * "Started payments" = paymentStatus is PARTIALLY_PAID or FULLY_PAID.
- * Students who already have a house keep it; students without one are assigned
- * to the least-populated house to keep the houses balanced.
+ * Students who already have a house are skipped entirely; only those without
+ * one are assigned to the least-populated house (to keep houses balanced) and
+ * emailed.
  *
  * The script is idempotent: a student who already received the email is skipped
  * unless --resend is passed.
@@ -77,30 +78,32 @@ async function run() {
 
   let assigned = 0; // newly given a house
   let emailed = 0;
+  let skippedHasHouse = 0; // already had a house -> left untouched
   let skipped = 0; // already emailed
   const failures: string[] = [];
 
   for (const student of students) {
-    // 1. Ensure the student has a house (assign balanced if not).
-    let house = student.house as HouseName | undefined;
-    let newlyAssigned = false;
-
-    if (!house) {
-      house = leastPopulatedHouse(counts);
-      newlyAssigned = true;
-      if (!dryRun) {
-        student.house = house;
-        student.houseWhatsappLink = HOUSES[house].whatsappLink;
-        await student.save();
-      }
-      counts[house]++; // keep balance for subsequent assignments
-      assigned++;
-      logger.info(
-        `${dryRun ? "[dry] " : ""}Assigned ${student.fullName} -> ${house} House`,
-      );
+    // Skip anyone who already has a house — only newly assign + email those
+    // without one.
+    if (student.house) {
+      skippedHasHouse++;
+      continue;
     }
 
-    // 2. Skip if already emailed (unless --resend).
+    // 1. Assign a balanced house.
+    const house = leastPopulatedHouse(counts);
+    if (!dryRun) {
+      student.house = house;
+      student.houseWhatsappLink = HOUSES[house].whatsappLink;
+      await student.save();
+    }
+    counts[house]++; // keep balance for subsequent assignments
+    assigned++;
+    logger.info(
+      `${dryRun ? "[dry] " : ""}Assigned ${student.fullName} -> ${house} House`,
+    );
+
+    // 2. Skip emailing if already emailed (unless --resend).
     if (student.houseAssignmentEmailSentAt && !resend) {
       skipped++;
       continue;
@@ -108,10 +111,7 @@ async function run() {
 
     // 3. Send the house assignment email.
     if (dryRun) {
-      logger.info(
-        `[dry] Would email ${student.email} -> ${house} House` +
-          `${newlyAssigned ? " (new)" : ""}`,
-      );
+      logger.info(`[dry] Would email ${student.email} -> ${house} House`);
       emailed++;
       continue;
     }
@@ -136,7 +136,8 @@ async function run() {
   logger.info(`${dryRun ? "[DRY RUN] " : ""}House mailing complete`);
   logger.info(`  Newly assigned a house: ${assigned}`);
   logger.info(`  Emailed:                ${emailed}`);
-  logger.info(`  Skipped (already sent): ${skipped}`);
+  logger.info(`  Skipped (already had house): ${skippedHasHouse}`);
+  logger.info(`  Skipped (already emailed):   ${skipped}`);
   logger.info(`  Failed:                 ${failures.length}`);
   if (failures.length) {
     failures.forEach((f) => logger.warn(`  - ${f}`));
