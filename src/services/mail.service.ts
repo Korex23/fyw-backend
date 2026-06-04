@@ -2,6 +2,7 @@ import transporter from "../config/mail";
 import { env } from "../config/env";
 import logger from "../utils/logger";
 import { formatCurrency } from "../utils/helpers";
+import { buildHouseAssignmentEmail, HouseName } from "../constants/houses";
 
 export class MailService {
   async sendPartialPaymentEmail(
@@ -788,6 +789,31 @@ export class MailService {
     } catch (error) {
       logger.error("Failed to send group partial payment email:", error);
     }
+  }
+
+  async sendHouseAssignmentEmail(
+    to: string,
+    fullName: string,
+    gender: "male" | "female",
+    house: HouseName,
+  ): Promise<void> {
+    const { subject, html, text } = buildHouseAssignmentEmail({
+      fullName,
+      gender,
+      house,
+    });
+
+    const mailOptions = {
+      from: env.EMAIL_FROM,
+      to,
+      subject,
+      html,
+      text,
+    };
+
+    // Let callers handle/observe failures (e.g. to avoid marking as sent).
+    await transporter.sendMail(mailOptions);
+    logger.info(`House assignment email sent to ${to} (${house} House)`);
   }
 
   async resendInvite(

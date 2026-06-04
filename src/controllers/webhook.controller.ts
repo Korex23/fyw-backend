@@ -28,11 +28,8 @@ export class WebhookController {
 
       logger.info(`Webhook received: ${event} for reference ${reference}`);
 
-      // Generate a unique event ID
-      const eventId = `${data?.id || reference}-${event}-${Date.now()}`;
-
-      // Process webhook (idempotent)
-      await paymentService.processWebhook(req.body, eventId);
+      // Process webhook (idempotent — the service derives a stable dedup key)
+      await paymentService.processWebhook(req.body);
 
       // Respond immediately to Flutterwave
       res.status(200).json({

@@ -21,4 +21,7 @@ export const generalRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Never throttle Flutterwave webhook deliveries — they all arrive from
+  // Flutterwave's IPs and a burst (or retries) would otherwise be dropped.
+  skip: (req) => req.originalUrl.includes("/webhooks"),
 });

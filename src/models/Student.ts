@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 import { PaymentStatus } from "../types";
 import { EVENT_DAY_KEYS, EventDayKey } from "../constants/eventDays";
+import { HOUSE_NAMES, HouseName } from "../constants/houses";
 
 export interface IStudent extends Document {
   fullName: string;
@@ -13,6 +14,9 @@ export interface IStudent extends Document {
   selectedDays: EventDayKey[];
   totalPaid: number;
   paymentStatus: PaymentStatus;
+  house?: HouseName;
+  houseWhatsappLink?: string;
+  houseAssignmentEmailSentAt?: Date;
   groupRegistrationId?: Types.ObjectId;
   invites?: {
     imageUrl?: string;
@@ -75,6 +79,17 @@ const StudentSchema = new Schema<IStudent>(
       enum: Object.values(PaymentStatus),
       default: PaymentStatus.NOT_PAID,
     },
+    house: {
+      type: String,
+      enum: HOUSE_NAMES,
+    },
+    houseWhatsappLink: {
+      type: String,
+      trim: true,
+    },
+    houseAssignmentEmailSentAt: {
+      type: Date,
+    },
     groupRegistrationId: {
       type: Schema.Types.ObjectId,
       ref: "GroupRegistration",
@@ -92,5 +107,6 @@ const StudentSchema = new Schema<IStudent>(
 // Index for efficient queries
 StudentSchema.index({ paymentStatus: 1 });
 StudentSchema.index({ packageId: 1 });
+StudentSchema.index({ house: 1 });
 
 export default mongoose.model<IStudent>("Student", StudentSchema);

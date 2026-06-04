@@ -17,7 +17,9 @@ const envSchema = z.object({
   FLUTTERWAVE_PUBLIC_KEY: z.string(),
   FLUTTERWAVE_ENCRYPTION_KEY: z.string().optional(),
   FLUTTERWAVE_REDIRECT_URL: z.string().url().optional(),
-  FLUTTERWAVE_WEBHOOK_SECRET_HASH: z.string(),
+  FLUTTERWAVE_WEBHOOK_SECRET_HASH: z
+    .string()
+    .min(1, "FLUTTERWAVE_WEBHOOK_SECRET_HASH must be set or all webhooks will be rejected"),
   CLOUDINARY_CLOUD_NAME: z.string(),
   CLOUDINARY_API_KEY: z.string(),
   CLOUDINARY_API_SECRET: z.string(),

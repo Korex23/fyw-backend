@@ -78,6 +78,19 @@ router.delete(
   adminController.deleteGroup.bind(adminController),
 );
 
+// Webhook events (payment notifications received from Flutterwave)
+router.get(
+  "/webhook-events",
+  authenticate,
+  adminController.getWebhookEvents.bind(adminController),
+);
+
+router.get(
+  "/webhook-events/:id",
+  authenticate,
+  adminController.getWebhookEventDetails.bind(adminController),
+);
+
 // Export
 router.get(
   "/export.csv",

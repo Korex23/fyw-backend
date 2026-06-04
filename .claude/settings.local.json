@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(ls src/models)",
+      "Bash(ls src/services)",
+      "Bash(ls src/scripts)",
+      "Bash(ls scripts *)"
     ]
   }
 }

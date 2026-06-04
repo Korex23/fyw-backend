@@ -9,6 +9,8 @@
     "start": "node dist/server.js",
     "seed": "ts-node scripts/seed.ts",
     "purge:defaulting": "ts-node scripts/purge-defaulting.ts",
+    "houses:save": "ts-node scripts/save-house-assignments.ts",
+    "houses:mail": "ts-node scripts/assign-houses-and-mail.ts",
     "test": "jest --detectOpenHandles"
   },
   "keywords": [

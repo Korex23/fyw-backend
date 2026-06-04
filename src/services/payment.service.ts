@@ -183,7 +183,7 @@ export class PaymentService {
     return payment;
   }
 
-  async processWebhook(eventData: any, eventId: string): Promise<void> {
+  async processWebhook(eventData: any, _legacyEventId?: string): Promise<void> {
     const event = eventData?.event;
     const data = eventData?.data || {};
     const reference = data?.tx_ref || data?.reference;
@@ -193,12 +193,15 @@ export class PaymentService {
       return;
     }
 
-    const existingEvent = await WebhookEvent.findOne({ eventId, reference });
-    if (existingEvent) {
-      logger.info(`Webhook event ${eventId} already processed`);
-      return;
-    }
+    // Stable idempotency key: Flutterwave resends the same transaction id
+    // (data.id) and event type on every retry, so the same delivery always maps
+    // to one key. (Falls back to the reference if no id is present.)
+    const transactionId = data?.id ?? reference;
+    const eventId = `${event ?? "unknown"}:${transactionId}`;
 
+    // Insert-as-lock: the unique index is the atomic gate. Two concurrent
+    // retries race to insert; the loser hits a duplicate-key error and bails —
+    // no racy check-then-act read.
     try {
       await WebhookEvent.create({
         eventId,
@@ -209,26 +212,34 @@ export class PaymentService {
       });
     } catch (error: any) {
       if (error.code === 11000) {
-        logger.info(`Webhook event ${eventId} already processed (duplicate)`);
+        logger.info(`Webhook event ${eventId} already processed — skipping`);
         return;
       }
       throw error;
     }
 
-    if (event === "charge.completed" && data.status === "successful") {
-      const payment = await Payment.findOne({ reference });
+    try {
+      if (event === "charge.completed" && data.status === "successful") {
+        const payment = await Payment.findOne({ reference });
 
-      if (!payment) {
-        logger.warn(`Payment not found for webhook reference: ${reference}`);
-        return;
+        if (!payment) {
+          logger.warn(`Payment not found for webhook reference: ${reference}`);
+          return;
+        }
+
+        if (payment.status === TransactionStatus.SUCCESS) {
+          logger.info(`Payment ${reference} already processed`);
+          return;
+        }
+
+        await this.processSuccessfulPayment(payment, data);
       }
-
-      if (payment.status === TransactionStatus.SUCCESS) {
-        logger.info(`Payment ${reference} already processed`);
-        return;
-      }
-
-      await this.processSuccessfulPayment(payment, data);
+    } catch (error) {
+      // Processing failed after the lock was taken — release it so Flutterwave's
+      // retry can reprocess. processSuccessfulPayment is itself idempotent
+      // (guarded by status === SUCCESS), so reprocessing can't double-credit.
+      await WebhookEvent.deleteOne({ eventId }).catch(() => undefined);
+      throw error;
     }
   }
 

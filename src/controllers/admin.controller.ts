@@ -11,6 +11,7 @@ import packageService from "../services/package.service";
 import { getEffectivePrice } from "../constants/discounts";
 import Student from "../models/Student";
 import Payment from "../models/Payment";
+import WebhookEvent from "../models/WebhookEvent";
 import { PaymentStatus, TransactionStatus, AuthRequest } from "../types";
 import { UnauthorizedError, BadRequestError } from "../utils/errors";
 import { Parser } from "json2csv";
@@ -418,6 +419,70 @@ export class AdminController {
         success: true,
         message: "Student details updated successfully",
         data: student,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getWebhookEvents(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const page = parseInt((req.query.page as string) || "1");
+      const limit = parseInt((req.query.limit as string) || "20");
+      const { event, reference } = req.query;
+
+      const query: any = {};
+      if (event) query.event = event as string;
+      if (reference) query.reference = reference as string;
+
+      const skip = (page - 1) * limit;
+      const [events, total] = await Promise.all([
+        WebhookEvent.find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          // rawPayload can be large — exclude it from the list view
+          .select("-rawPayload")
+          .lean(),
+        WebhookEvent.countDocuments(query),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          events,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getWebhookEventDetails(
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const event = await WebhookEvent.findById(id).lean();
+      if (!event) {
+        throw new BadRequestError("Webhook event not found");
+      }
+
+      res.status(200).json({
+        success: true,
+        data: event,
       });
     } catch (error) {
       next(error);
