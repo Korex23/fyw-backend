@@ -4,6 +4,7 @@ import studentController, {
   selectPackageSchema,
   upgradePackageSchema,
   downgradePackageSchema,
+  changeDaysSchema,
   getStudentSchema,
 } from "../controllers/student.controller";
 import { validate } from "../middlewares/validation.middleware";
@@ -49,6 +50,13 @@ router.post(
   "/downgrade-package",
   validate(downgradePackageSchema),
   studentController.downgradePackage.bind(studentController),
+);
+
+// Change selected days within the current package's scope
+router.post(
+  "/change-days",
+  validate(changeDaysSchema),
+  studentController.changeSelectedDays.bind(studentController),
 );
 
 export default router;

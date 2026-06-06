@@ -9,6 +9,7 @@ import inviteService from "../services/invite.service";
 import mailService from "../services/mail.service";
 import packageService from "../services/package.service";
 import { getEffectivePrice } from "../constants/discounts";
+import { EVENT_DAYS } from "../constants/eventDays";
 import Student from "../models/Student";
 import Payment from "../models/Payment";
 import WebhookEvent from "../models/WebhookEvent";
@@ -136,13 +137,19 @@ export class AdminController {
       const individualStudents = await Student.find({
         groupRegistrationId: { $exists: false },
       }).populate("packageId");
-      let outstandingTotal = 0;
+      let outstandingTotal = 0; // owed by EVERYONE (started + not started)
+      let startedPayersOutstanding = 0; // owed only by those who have started paying
       for (const student of individualStudents) {
         const pkg = student.packageId as any;
-        outstandingTotal += Math.max(
+        const owed = Math.max(
           getEffectivePrice(student.matricNumber, pkg) - student.totalPaid,
           0,
         );
+        outstandingTotal += owed;
+        // "Started paying" = has paid something towards their package.
+        if (student.totalPaid > 0) {
+          startedPayersOutstanding += owed;
+        }
       }
       // Add outstanding from unpaid/partial groups
       const groupOutstandingAgg = await GroupRegistration.aggregate([
@@ -151,6 +158,58 @@ export class AdminController {
       ]);
       outstandingTotal += groupOutstandingAgg[0]?.total || 0;
 
+      // Outstanding from groups that have started paying but aren't fully paid yet.
+      const startedGroupOutstandingAgg = await GroupRegistration.aggregate([
+        { $match: { paymentStatus: { $ne: "FULLY_PAID" }, totalPaid: { $gt: 0 } } },
+        { $group: { _id: null, total: { $sum: { $subtract: ["$totalAmount", "$totalPaid"] } } } },
+      ]);
+      startedPayersOutstanding += startedGroupOutstandingAgg[0]?.total || 0;
+
+      // Projected revenue if everyone who has started paying clears their balance.
+      const currentRevenue = totalRevenue[0]?.total || 0;
+      const projectedRevenueIfStartedComplete =
+        currentRevenue + startedPayersOutstanding;
+
+      // How many people have access to each event day, among those who have paid.
+      // selectedDays stores the full effective day list per student (incl. FULL =
+      // all 5 days and the Owambe Plus anchor), so we can group on it directly.
+      const dayAgg = await Student.aggregate<{
+        _id: string;
+        started: number;
+        fullyPaid: number;
+      }>([
+        {
+          $match: {
+            paymentStatus: {
+              $in: [PaymentStatus.PARTIALLY_PAID, PaymentStatus.FULLY_PAID],
+            },
+          },
+        },
+        { $unwind: "$selectedDays" },
+        {
+          $group: {
+            _id: "$selectedDays",
+            started: { $sum: 1 },
+            fullyPaid: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$paymentStatus", PaymentStatus.FULLY_PAID] },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]);
+      const dayCountMap = new Map(dayAgg.map((d) => [d._id, d]));
+      const dayBreakdown = EVENT_DAYS.map(({ key, label }) => ({
+        day: key,
+        label,
+        startedCount: dayCountMap.get(key)?.started || 0,
+        fullyPaidCount: dayCountMap.get(key)?.fullyPaid || 0,
+      }));
+
       res.status(200).json({
         success: true,
         data: {
@@ -158,8 +217,11 @@ export class AdminController {
           fullyPaidCount: fullyPaid,
           partiallyPaidCount: partiallyPaid,
           notPaidCount: notPaid,
-          totalRevenue: totalRevenue[0]?.total || 0,
+          totalRevenue: currentRevenue,
           outstandingTotal,
+          startedPayersOutstanding,
+          projectedRevenueIfStartedComplete,
+          dayBreakdown,
           groups: {
             totalGroups,
             fullyPaidGroups,

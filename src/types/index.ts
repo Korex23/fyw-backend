@@ -71,6 +71,13 @@ export interface InviteData {
   generatedAt: Date;
 }
 
+export interface DayBreakdownEntry {
+  day: string;
+  label: string;
+  startedCount: number;
+  fullyPaidCount: number;
+}
+
 export interface StudentMetrics {
   totalStudents: number;
   totalRevenue: number;
@@ -78,4 +85,9 @@ export interface StudentMetrics {
   partiallyPaidCount: number;
   notPaidCount: number;
   outstandingTotal: number;
+  // Outstanding owed only by people who have already started paying.
+  startedPayersOutstanding: number;
+  // totalRevenue + startedPayersOutstanding.
+  projectedRevenueIfStartedComplete: number;
+  dayBreakdown: DayBreakdownEntry[];
 }

@@ -47,6 +47,13 @@ export const downgradePackageSchema = z.object({
   }),
 });
 
+export const changeDaysSchema = z.object({
+  body: z.object({
+    matricNumber: matricNumberSchema,
+    selectedDays: z.array(z.string()).min(1),
+  }),
+});
+
 export const getStudentSchema = z.object({
   params: z.object({
     matricNumber: matricNumberSchema,
@@ -218,6 +225,35 @@ export class StudentController {
           student,
           package: pkg,
           outstanding,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async changeSelectedDays(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const { matricNumber, selectedDays } = req.body;
+
+      const student = await studentService.changeSelectedDays(
+        matricNumber,
+        selectedDays,
+      );
+      const pkg = await packageService.getPackageById(
+        student.packageId._id.toString(),
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Selected days updated successfully",
+        data: {
+          student,
+          package: pkg,
         },
       });
     } catch (error) {

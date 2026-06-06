@@ -17,6 +17,7 @@ export interface IStudent extends Document {
   house?: HouseName;
   houseWhatsappLink?: string;
   houseAssignmentEmailSentAt?: Date;
+  daySwapAppliedAt?: Date;
   groupRegistrationId?: Types.ObjectId;
   invites?: {
     imageUrl?: string;
@@ -88,6 +89,9 @@ const StudentSchema = new Schema<IStudent>(
       trim: true,
     },
     houseAssignmentEmailSentAt: {
+      type: Date,
+    },
+    daySwapAppliedAt: {
       type: Date,
     },
     groupRegistrationId: {

@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import logger from "../utils/logger";
 import { formatCurrency } from "../utils/helpers";
 import { buildHouseAssignmentEmail, HouseName } from "../constants/houses";
+import { buildDaySwapEmail, DaySwapType } from "../constants/daySwap";
 
 export class MailService {
   async sendPartialPaymentEmail(
@@ -814,6 +815,33 @@ export class MailService {
     // Let callers handle/observe failures (e.g. to avoid marking as sent).
     await transporter.sendMail(mailOptions);
     logger.info(`House assignment email sent to ${to} (${house} House)`);
+  }
+
+  async sendDaySwapEmail(
+    to: string,
+    fullName: string,
+    packageName: string,
+    imageUrl: string,
+    swapType: DaySwapType,
+  ): Promise<void> {
+    const { subject, html, text } = buildDaySwapEmail({
+      fullName,
+      packageName,
+      imageUrl,
+      swapType,
+    });
+
+    const mailOptions = {
+      from: env.EMAIL_FROM,
+      to,
+      subject,
+      html,
+      text,
+    };
+
+    // Let callers handle/observe failures (e.g. to avoid marking as swapped).
+    await transporter.sendMail(mailOptions);
+    logger.info(`Day-swap email (${swapType}) sent to ${to}`);
   }
 
   async resendInvite(

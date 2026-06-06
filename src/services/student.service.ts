@@ -5,6 +5,7 @@ import GroupRegistration from "../models/GroupRegistration";
 import { PaymentStatus } from "../types";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import packageService from "./package.service";
+import inviteService from "./invite.service";
 import logger from "../utils/logger";
 import { EVENT_DAY_KEYS, EventDayKey } from "../constants/eventDays";
 import { getEffectivePrice } from "../constants/discounts";
@@ -328,6 +329,62 @@ export class StudentService {
     }
 
     return await student.save();
+  }
+
+  /**
+   * Change which days a student attends WITHOUT changing their package. The new
+   * selection must satisfy the same rules as the package they're paying for
+   * (e.g. Two-Day Flex = exactly 2 days, no Friday; Owambe Plus = 3 days incl.
+   * an anchor). The Full Experience package has no choice — every day is
+   * included — so it is rejected.
+   *
+   * Payment is preserved. If the student already has a generated invite (which
+   * lists their access days), it is regenerated so it stays accurate.
+   */
+  async changeSelectedDays(
+    matricNumber: string,
+    selectedDays: string[],
+  ): Promise<IStudent> {
+    const student = await this.getStudentByMatricNumber(matricNumber);
+    const pkg = await packageService.getPackageById(
+      student.packageId._id.toString(),
+    );
+
+    if (pkg.packageType === "FULL") {
+      throw new BadRequestError(
+        "The Full Experience package already includes every day — there are no days to change.",
+      );
+    }
+
+    // Group members attend on the full-experience package managed at group
+    // level; they cannot independently change their days here.
+    if (student.groupRegistrationId) {
+      throw new BadRequestError(
+        "Group members cannot change their days individually.",
+      );
+    }
+
+    // Validate the new selection against the current package's day rules.
+    student.selectedDays = this.resolveSelectedDaysForPackage(
+      pkg.packageType,
+      selectedDays,
+    );
+
+    // Keep an existing invite in sync with the newly chosen days.
+    if (student.invites?.imageUrl) {
+      const invite = await inviteService.generateInvites(student, pkg);
+      student.invites = {
+        imageUrl: invite.imageUrl,
+        generatedAt: invite.generatedAt,
+      };
+    }
+
+    await student.save();
+    logger.info(
+      `Student ${matricNumber} changed selected days to ${student.selectedDays.join(",")}`,
+    );
+
+    return student;
   }
 
   async updatePaymentStatus(
