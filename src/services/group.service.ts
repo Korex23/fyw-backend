@@ -12,16 +12,12 @@ import logger from "../utils/logger";
 import { env } from "../config/env";
 import { EVENT_DAY_KEYS } from "../constants/eventDays";
 
-// 3 members × ₦60,000 = ₦180,000, less a 10% group discount = ₦162,000
+// 3 members x 60,000 = 180,000, less a 10% group discount = 162,000
 const GROUP_TOTAL = 162000;
 const GROUP_PACKAGE_CODE = "F";
 const GROUP_SIZE = 3;
 // Each member's honest share of the group total (keeps per-student totals summing to GROUP_TOTAL)
 const GROUP_MEMBER_SHARE = Math.round(GROUP_TOTAL / GROUP_SIZE);
-// How long a PENDING payment reserves part of the balance before it's treated as
-// an abandoned checkout. Until it expires, the amount counts against what's left to
-// pay so two concurrent payers can't both grab the full outstanding and overshoot.
-const PENDING_PAYMENT_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export interface GroupMemberInput {
   matricNumber: string;
@@ -52,37 +48,22 @@ export class GroupService {
 
     const fullPkg = await packageService.getPackageByCode(GROUP_PACKAGE_CODE);
 
-    // Pre-flight: never silently overwrite a student who has progress of their own.
-    // Reject the whole registration with a clear, per-member reason so the payer
-    // can swap the offending member(s) out before anything is created.
+    // Pre-flight: only block students whose balance has actually been committed.
     const existingStudents = await Student.find({
       matricNumber: { $in: matricNumbers },
     });
 
-    // Also catch students with an individual checkout still in flight (a PENDING
-    // payment with no group attached). totalPaid only moves once a payment settles,
-    // so without this a student mid-checkout would slip through and could pay twice.
-    const pendingCutoff = new Date(Date.now() - PENDING_PAYMENT_TTL_MS);
-    const inFlightPayments = await Payment.find({
-      studentId: { $in: existingStudents.map((s) => s._id) },
-      groupRegistrationId: { $exists: false },
-      status: TransactionStatus.PENDING,
-      createdAt: { $gte: pendingCutoff },
-    }).select("studentId");
-    const inFlightStudentIds = new Set(
-      inFlightPayments.map((p) => p.studentId.toString()),
-    );
-
     const blocked = existingStudents
       .map((s) => {
-        if (s.paymentStatus === PaymentStatus.FULLY_PAID)
+        if (s.paymentStatus === PaymentStatus.FULLY_PAID) {
           return `${s.matricNumber} (already fully paid)`;
-        if (s.groupRegistrationId)
+        }
+        if (s.groupRegistrationId) {
           return `${s.matricNumber} (already in another group)`;
-        if (s.totalPaid > 0)
+        }
+        if (s.totalPaid > 0) {
           return `${s.matricNumber} (has already made an individual payment)`;
-        if (inFlightStudentIds.has((s._id as any).toString()))
-          return `${s.matricNumber} (has an individual payment in progress)`;
+        }
         return null;
       })
       .filter((m): m is string => m !== null);
@@ -104,8 +85,7 @@ export class GroupService {
         let student = existingByMatric.get(input.matricNumber.toUpperCase());
 
         if (student) {
-          // Safe to re-purpose: pre-flight guaranteed totalPaid === 0, no group,
-          // and not fully paid, so no progress is lost.
+          // Safe to re-purpose: this student has no committed payment history.
           student.fullName = input.fullName;
           student.gender = input.gender;
           if (input.email) student.email = input.email;
@@ -149,7 +129,7 @@ export class GroupService {
       paymentStatus: "NOT_PAID",
     });
 
-    // Stamp groupRegistrationId on each student for admin visibility
+    // Stamp groupRegistrationId on each student for admin visibility.
     await Promise.all(
       studentRecords.map((s) =>
         Student.findByIdAndUpdate(s._id, { groupRegistrationId: group._id }),
@@ -174,7 +154,12 @@ export class GroupService {
     groupId: string,
     amount: number,
     payerEmail: string,
-  ): Promise<{ authorization_url: string; reference: string; amount: number; outstanding: number }> {
+  ): Promise<{
+    authorization_url: string;
+    reference: string;
+    amount: number;
+    outstanding: number;
+  }> {
     const group = await GroupRegistration.findById(groupId);
     if (!group) throw new NotFoundError("Group registration not found");
 
@@ -184,37 +169,27 @@ export class GroupService {
 
     if (amount <= 0) throw new BadRequestError("Amount must be greater than 0");
 
-    // What's left to pay must account for in-flight (PENDING) payments too, not just
-    // completed ones — otherwise two payers initializing at the same moment could each
-    // be cleared for the full balance and overshoot the group total. Pending payments
-    // older than the TTL are treated as abandoned so they don't lock the balance.
-    const pendingCutoff = new Date(Date.now() - PENDING_PAYMENT_TTL_MS);
+    // Only successful group payments reduce the outstanding balance.
     const committedAgg = await Payment.aggregate([
       {
         $match: {
           groupRegistrationId: group._id,
-          $or: [
-            { status: TransactionStatus.SUCCESS },
-            {
-              status: TransactionStatus.PENDING,
-              createdAt: { $gte: pendingCutoff },
-            },
-          ],
+          status: TransactionStatus.SUCCESS,
         },
       },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
+
     const committed = committedAgg[0]?.total || 0;
     const outstanding = Math.max(GROUP_TOTAL - committed, 0);
 
     if (outstanding <= 0) {
-      throw new BadRequestError(
-        "This group's balance is already covered by a completed or in-progress payment. Please wait for it to settle.",
-      );
+      throw new BadRequestError("This group has already fully paid");
     }
+
     if (amount > outstanding) {
       throw new BadRequestError(
-        `Amount exceeds the ₦${outstanding.toLocaleString()} left to pay. Part of the balance may be covered by a payment already in progress — try again shortly if that one is abandoned.`,
+        `Amount exceeds the NGN ${outstanding.toLocaleString()} left to pay.`,
       );
     }
 
@@ -238,8 +213,9 @@ export class GroupService {
         "FLUTTERWAVE_REDIRECT_URL must be a public URL (localhost is invalid)",
       );
     }
+
     // Tag the redirect so the frontend knows this is a group payment and which
-    // group to route back to once Flutterwave appends its own params (tx_ref, etc).
+    // group to route back to once Flutterwave appends its own params.
     redirectUrlObj.searchParams.set("type", "group");
     redirectUrlObj.searchParams.set("groupId", groupId);
     const redirectUrl = redirectUrlObj.toString();
@@ -256,7 +232,9 @@ export class GroupService {
       groupRegistrationId: groupId,
     });
 
-    logger.info(`Group payment initialized: ${reference} for group ${groupId}, amount: ₦${amount}`);
+    logger.info(
+      `Group payment initialized: ${reference} for group ${groupId}, amount: NGN ${amount}`,
+    );
 
     try {
       const { data: response } = await axios.post(
@@ -278,7 +256,7 @@ export class GroupService {
           },
           customizations: {
             title: "ULES Final Year Week - Group Package",
-            description: `Group Full Experience (3 members) — paying ₦${amount.toLocaleString()} of ₦${GROUP_TOTAL.toLocaleString()}`,
+            description: `Group Full Experience (3 members) - paying NGN ${amount.toLocaleString()} of NGN ${GROUP_TOTAL.toLocaleString()}`,
           },
         },
         {
@@ -291,7 +269,7 @@ export class GroupService {
 
       if (response.status !== "success" || !response.data?.link) {
         logger.error({ response }, "Flutterwave group payment initialize failed");
-        // Clean up the pending payment if Flutterwave rejected it
+        // Clean up the pending payment if Flutterwave rejected it.
         await Payment.findByIdAndDelete(payment._id);
         throw new BadRequestError(
           response.message || "Failed to initialize group payment",
@@ -315,7 +293,10 @@ export class GroupService {
     }
   }
 
-  async processGroupPayment(groupRegistrationId: string, amountPaid: number): Promise<void> {
+  async processGroupPayment(
+    groupRegistrationId: string,
+    amountPaid: number,
+  ): Promise<void> {
     const group = await GroupRegistration.findById(groupRegistrationId);
     if (!group) {
       throw new NotFoundError("Group registration not found");
@@ -323,10 +304,7 @@ export class GroupService {
 
     const fullPkg = await packageService.getPackageByCode(GROUP_PACKAGE_CODE);
 
-    // Source of truth = sum of all SUCCESS payments for this group. The caller marks
-    // the current payment SUCCESS before invoking this, so the sum already includes it.
-    // Recomputing (instead of incrementing) makes this idempotent and free of
-    // lost-update races when two payments are processed concurrently.
+    // Source of truth = sum of all SUCCESS payments for this group.
     const agg = await Payment.aggregate([
       {
         $match: {
@@ -342,18 +320,16 @@ export class GroupService {
 
     if (collected > GROUP_TOTAL) {
       logger.warn(
-        `Group ${groupRegistrationId} overpaid: collected ₦${collected} of ₦${GROUP_TOTAL} (₦${collected - GROUP_TOTAL} over)`,
+        `Group ${groupRegistrationId} overpaid: collected NGN ${collected} of NGN ${GROUP_TOTAL} (NGN ${collected - GROUP_TOTAL} over)`,
       );
     }
 
     logger.info(
-      `Group ${groupRegistrationId} payment: ₦${collected} / ₦${GROUP_TOTAL} — outstanding ₦${outstanding}`,
+      `Group ${groupRegistrationId} payment: NGN ${collected} / NGN ${GROUP_TOTAL} - outstanding NGN ${outstanding}`,
     );
 
     if (isFullyPaid) {
-      // Atomically claim the fully-paid transition. Only the call that flips the
-      // status away from non-FULLY_PAID runs the invite/email side effects, so
-      // concurrent finalizations can't double-generate invites or double-email.
+      // Atomically claim the fully-paid transition.
       const claimed = await GroupRegistration.findOneAndUpdate(
         { _id: group._id, paymentStatus: { $ne: "FULLY_PAID" } },
         { paymentStatus: "FULLY_PAID", totalPaid: collected },
@@ -361,7 +337,7 @@ export class GroupService {
       );
 
       if (!claimed) {
-        logger.info(`Group ${groupRegistrationId} already finalized — skipping`);
+        logger.info(`Group ${groupRegistrationId} already finalized - skipping`);
         return;
       }
 
@@ -369,13 +345,11 @@ export class GroupService {
       return;
     }
 
-    // Partial payment — record the true total and notify all members.
+    // Partial payment - record the true total and notify all members.
     group.totalPaid = collected;
     group.paymentStatus = collected > 0 ? "PARTIALLY_PAID" : "NOT_PAID";
     await group.save();
 
-    // Split what's collected evenly across members so each member's record shows
-    // their own paid/left-to-pay (capped at their share). Admin & status views read this.
     const memberPaidShare = Math.min(
       Math.round(collected / GROUP_SIZE),
       GROUP_MEMBER_SHARE,
@@ -409,7 +383,7 @@ export class GroupService {
   }
 
   // Marks every member fully paid, generates their invites, and emails them.
-  // Called exactly once per group (guarded by the atomic status claim above).
+  // Called exactly once per group.
   private async finalizeGroup(
     group: IGroupRegistration,
     fullPkg: Awaited<ReturnType<typeof packageService.getPackageByCode>>,
@@ -422,7 +396,6 @@ export class GroupService {
           return;
         }
 
-        // Honest per-student share so individual totals sum to the group total.
         student.totalPaid = GROUP_MEMBER_SHARE;
         student.paymentStatus = PaymentStatus.FULLY_PAID;
         await student.save();
@@ -431,7 +404,10 @@ export class GroupService {
 
         try {
           const invites = await inviteService.generateInvites(student, fullPkg);
-          student.invites = { imageUrl: invites.imageUrl, generatedAt: invites.generatedAt };
+          student.invites = {
+            imageUrl: invites.imageUrl,
+            generatedAt: invites.generatedAt,
+          };
           await student.save();
 
           if (student.email) {
@@ -451,7 +427,7 @@ export class GroupService {
       }),
     );
 
-    logger.info(`Group ${group._id} fully processed — all invites sent`);
+    logger.info(`Group ${group._id} fully processed - all invites sent`);
   }
 
   async getGroupById(groupId: string): Promise<IGroupRegistration> {
@@ -479,7 +455,7 @@ export class GroupService {
     await GroupRegistration.findByIdAndDelete(groupId);
 
     logger.info(
-      `Group ${groupId} deleted — ${studentResult.deletedCount} members, ${paymentResult.deletedCount} payments`,
+      `Group ${groupId} deleted - ${studentResult.deletedCount} members, ${paymentResult.deletedCount} payments`,
     );
 
     return {

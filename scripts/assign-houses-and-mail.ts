@@ -23,11 +23,7 @@ import mongoose from "mongoose";
 import { env } from "../src/config/env";
 import Student, { IStudent } from "../src/models/Student";
 import { PaymentStatus } from "../src/types";
-import {
-  HOUSES,
-  HOUSE_NAMES,
-  HouseName,
-} from "../src/constants/houses";
+import { HOUSES, HOUSE_NAMES, HouseName } from "../src/constants/houses";
 import mailService from "../src/services/mail.service";
 import logger from "../src/utils/logger";
 
@@ -36,17 +32,17 @@ import logger from "../src/utils/logger";
 // This guards against npm swallowing flags: `npm run houses:mail --dry` does
 // NOT pass --dry to the script, but the default-dry behaviour keeps it safe.
 // To actually send:  npm run houses:mail -- --send
-const live =
-  process.argv.includes("--send") || process.argv.includes("--live");
+const live = process.argv.includes("--send") || process.argv.includes("--live");
 const dryRun = !live;
 const resend = process.argv.includes("--resend");
 const fullyPaidOnly = process.argv.includes("--fully-paid");
 
 /** Build current per-house counts so new assignments stay balanced. */
 async function loadHouseCounts(): Promise<Record<HouseName, number>> {
-  const counts = Object.fromEntries(
-    HOUSE_NAMES.map((h) => [h, 0]),
-  ) as Record<HouseName, number>;
+  const counts = Object.fromEntries(HOUSE_NAMES.map((h) => [h, 0])) as Record<
+    HouseName,
+    number
+  >;
 
   const grouped = await Student.aggregate<{ _id: HouseName; n: number }>([
     { $match: { house: { $in: HOUSE_NAMES } } },
@@ -60,16 +56,18 @@ async function loadHouseCounts(): Promise<Record<HouseName, number>> {
 
 /** Pick the house with the fewest members (ties broken by HOUSE_NAMES order). */
 function leastPopulatedHouse(counts: Record<HouseName, number>): HouseName {
-  return HOUSE_NAMES.reduce((best, h) =>
-    counts[h] < counts[best] ? h : best,
-  );
+  return HOUSE_NAMES.reduce((best, h) => (counts[h] < counts[best] ? h : best));
 }
 
 async function run() {
   if (dryRun) {
-    logger.info("🧪 DRY RUN — no emails will be sent and nothing will be written. Pass `-- --send` to go live.");
+    logger.info(
+      "🧪 DRY RUN — no emails will be sent and nothing will be written. Pass `-- --send` to go live.",
+    );
   } else {
-    logger.warn("🚨 LIVE MODE — real emails will be sent and the database will be updated.");
+    logger.warn(
+      "🚨 LIVE MODE — real emails will be sent and the database will be updated.",
+    );
   }
 
   await mongoose.connect(env.MONGODB_URI);
