@@ -5,8 +5,13 @@
  *
  * "Started payments" = paymentStatus is PARTIALLY_PAID or FULLY_PAID.
  * Students who already have a house are skipped entirely; only those without
- * one are assigned to the least-populated house (to keep houses balanced) and
- * emailed.
+ * one are assigned and emailed.
+ *
+ * Balancing is gender-aware: we first count the existing male and female
+ * members already in each house, then assign each unassigned student to the
+ * house that currently has the fewest members of THAT student's gender. This
+ * keeps the male/female split even across houses (e.g. ~30 boys + ~20 girls
+ * per house) rather than just balancing the raw head-count.
  *
  * The script is idempotent: a student who already received the email is skipped
  * unless --resend is passed.
@@ -37,26 +42,52 @@ const dryRun = !live;
 const resend = process.argv.includes("--resend");
 const fullyPaidOnly = process.argv.includes("--fully-paid");
 
-/** Build current per-house counts so new assignments stay balanced. */
-async function loadHouseCounts(): Promise<Record<HouseName, number>> {
-  const counts = Object.fromEntries(HOUSE_NAMES.map((h) => [h, 0])) as Record<
-    HouseName,
-    number
-  >;
+type Gender = "male" | "female";
 
-  const grouped = await Student.aggregate<{ _id: HouseName; n: number }>([
-    { $match: { house: { $in: HOUSE_NAMES } } },
-    { $group: { _id: "$house", n: { $sum: 1 } } },
+/** Per-house member counts, split by gender. */
+type HouseGenderCounts = Record<HouseName, Record<Gender, number>>;
+
+/**
+ * Build current per-house counts split by gender so new assignments keep the
+ * male/female distribution even across houses.
+ */
+async function loadHouseCounts(): Promise<HouseGenderCounts> {
+  const counts = Object.fromEntries(
+    HOUSE_NAMES.map((h) => [h, { male: 0, female: 0 }]),
+  ) as HouseGenderCounts;
+
+  const grouped = await Student.aggregate<{
+    _id: { house: HouseName; gender: Gender };
+    n: number;
+  }>([
+    { $match: { house: { $in: HOUSE_NAMES }, gender: { $in: ["male", "female"] } } },
+    {
+      $group: {
+        _id: { house: "$house", gender: "$gender" },
+        n: { $sum: 1 },
+      },
+    },
   ]);
   for (const g of grouped) {
-    if (g._id in counts) counts[g._id] = g.n;
+    const { house, gender } = g._id;
+    if (house in counts && (gender === "male" || gender === "female")) {
+      counts[house][gender] = g.n;
+    }
   }
   return counts;
 }
 
-/** Pick the house with the fewest members (ties broken by HOUSE_NAMES order). */
-function leastPopulatedHouse(counts: Record<HouseName, number>): HouseName {
-  return HOUSE_NAMES.reduce((best, h) => (counts[h] < counts[best] ? h : best));
+/**
+ * Pick the house with the fewest members of the given gender so each gender is
+ * spread evenly (ties broken by HOUSE_NAMES order).
+ */
+function leastPopulatedHouse(
+  counts: HouseGenderCounts,
+  gender: Gender,
+): HouseName {
+  return HOUSE_NAMES.reduce((best, h) =>
+    counts[h][gender] < counts[best][gender] ? h : best,
+  );
 }
 
 async function run() {
@@ -88,6 +119,12 @@ async function run() {
   );
 
   const counts = await loadHouseCounts();
+  logger.info(
+    `Existing house distribution: ${HOUSE_NAMES.map(
+      (h) =>
+        `${h}=${counts[h].male + counts[h].female} (M:${counts[h].male} F:${counts[h].female})`,
+    ).join(", ")}`,
+  );
 
   let assigned = 0; // newly given a house
   let emailed = 0;
@@ -103,17 +140,18 @@ async function run() {
       continue;
     }
 
-    // 1. Assign a balanced house.
-    const house = leastPopulatedHouse(counts);
+    // 1. Assign a house that keeps this student's gender balanced across houses.
+    const gender: Gender = student.gender === "female" ? "female" : "male";
+    const house = leastPopulatedHouse(counts, gender);
     if (!dryRun) {
       student.house = house;
       student.houseWhatsappLink = HOUSES[house].whatsappLink;
       await student.save();
     }
-    counts[house]++; // keep balance for subsequent assignments
+    counts[house][gender]++; // keep balance for subsequent assignments
     assigned++;
     logger.info(
-      `${dryRun ? "[dry] " : ""}Assigned ${student.fullName} -> ${house} House`,
+      `${dryRun ? "[dry] " : ""}Assigned ${student.fullName} (${gender}) -> ${house} House`,
     );
 
     // 2. Skip emailing if already emailed (unless --resend).
@@ -156,7 +194,10 @@ async function run() {
     failures.forEach((f) => logger.warn(`  - ${f}`));
   }
   logger.info(
-    `  Final house counts: ${HOUSE_NAMES.map((h) => `${h}=${counts[h]}`).join(", ")}`,
+    `  Final house counts: ${HOUSE_NAMES.map(
+      (h) =>
+        `${h}=${counts[h].male + counts[h].female} (M:${counts[h].male} F:${counts[h].female})`,
+    ).join(", ")}`,
   );
 
   await mongoose.disconnect();
