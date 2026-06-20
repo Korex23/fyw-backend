@@ -4,7 +4,10 @@ import helmet from "helmet";
 import { connectDatabase } from "./config/database";
 import routes from "./routes";
 import { errorHandler, notFound } from "./middlewares/error.middleware";
-import { generalRateLimiter } from "./middlewares/rateLimit.middleware";
+import {
+  generalRateLimiter,
+  noDeviceRateLimiter,
+} from "./middlewares/rateLimit.middleware";
 import logger from "./utils/logger";
 import { env } from "./config/env";
 
@@ -45,7 +48,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting
+// Rate limiting — strict cap for header-less (non-frontend) traffic first,
+// then the general per-IP backstop for everyone.
+app.use("/api", noDeviceRateLimiter);
 app.use("/api", generalRateLimiter);
 
 // Routes

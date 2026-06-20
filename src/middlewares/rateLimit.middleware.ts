@@ -48,6 +48,27 @@ const limitedHandler =
     res.status(options.statusCode).json(options.message);
   };
 
+// Strict per-IP limit for traffic that does NOT carry an X-Device-Id header,
+// i.e. everything that isn't the legitimate frontend. This is the layer that
+// absorbs scripted/abusive callers without punishing real users (who send the
+// header and fall under the more generous limiters below). Webhooks are exempt
+// since Flutterwave can't send a device id and arrives from a few fixed IPs.
+const NO_DEVICE_MAX_REQUESTS = 20; // per IP per window
+export const noDeviceRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: NO_DEVICE_MAX_REQUESTS,
+  keyGenerator: ipFallback,
+  message: {
+    success: false,
+    message: "Too many requests, please try again later",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: limitedHandler("no-device"),
+  skip: (req) =>
+    !!req.header("x-device-id")?.trim() || req.originalUrl.includes("/webhooks"),
+});
+
 export const paymentRateLimiter = rateLimit({
   windowMs: parseInt(env.RATE_LIMIT_WINDOW_MS),
   max: parseInt(env.RATE_LIMIT_MAX_REQUESTS),
