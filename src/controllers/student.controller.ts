@@ -7,8 +7,8 @@ import { getEffectivePrice } from "../constants/discounts";
 const matricNumberSchema = z
   .string()
   .regex(
-    /^(1904|2104)\d{5}$/,
-    "Matric number must start with 1904 or 2104 and contain exactly 9 digits with no letters",
+    /^(1703|1803|1903|21031704|1804|1904|2104|1808|1708|1908|2108)\d{5}$/,
+    "Matric number must start with 1703, 1803, 1903, 2103, 1804, 1904, 2104, 1808, 1708, 1908, or 2108 and contain exactly 9 digits with no letters",
   );
 
 export const createStudentSchema = z.object({
@@ -75,8 +75,7 @@ export class StudentController {
         email,
         phone,
         selectedDays,
-      } =
-        req.body;
+      } = req.body;
 
       const result = await studentService.createOrIdentifyStudent(
         matricNumber,
@@ -121,7 +120,10 @@ export class StudentController {
         student.packageId._id.toString(),
       );
 
-      const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
+      const outstanding = Math.max(
+        getEffectivePrice(student.matricNumber, pkg) - student.totalPaid,
+        0,
+      );
 
       res.status(200).json({
         success: true,
@@ -183,7 +185,10 @@ export class StudentController {
         student.packageId._id.toString(),
       );
 
-      const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
+      const outstanding = Math.max(
+        getEffectivePrice(student.matricNumber, pkg) - student.totalPaid,
+        0,
+      );
 
       res.status(200).json({
         success: true,
@@ -216,7 +221,10 @@ export class StudentController {
         student.packageId._id.toString(),
       );
 
-      const outstanding = Math.max(getEffectivePrice(student.matricNumber, pkg) - student.totalPaid, 0);
+      const outstanding = Math.max(
+        getEffectivePrice(student.matricNumber, pkg) - student.totalPaid,
+        0,
+      );
 
       res.status(200).json({
         success: true,

@@ -6,8 +6,8 @@ import Student from "../models/Student";
 const matricNumberSchema = z
   .string()
   .regex(
-    /^(1904|2104)\d{5}$/,
-    "Matric number must start with 1904 or 2104 and contain exactly 9 digits",
+    /^(1703|1803|1903|21031704|1804|1904|2104|1808|1708|1908|2108)\d{5}$/,
+    "Matric number must start with 1703, 1803, 1903, 2103, 1804, 1904, 2104, 1808, 1708, 1908, or 2108 and contain exactly 9 digits with no letters",
   );
 
 const memberSchema = z.object({
