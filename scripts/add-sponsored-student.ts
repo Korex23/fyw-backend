@@ -9,8 +9,8 @@
  *
  * Safety: this script WRITES to the DB, uploads to Cloudinary and SENDS email.
  * It is opt-in — without `--send` it runs as a DRY RUN and only prints what it
- * would do. Re-running with --send is safe: the student is upserted by matric
- * number and the invite is regenerated/re-sent.
+ * would do. Re-running with --send is safe: any existing record for the matric
+ * number is deleted first, then a clean record + invite is created and emailed.
  *
  * Usage:
  *   ts-node scripts/add-sponsored-student.ts            # DRY RUN (default)
@@ -34,8 +34,8 @@ const dryRun = !live;
 // Student to onboard.
 const STUDENT = {
   matricNumber: "190407059",
-  fullName: "Ahamsi Godsfavour",
-  email: "ahamsiaceman@gmail.com",
+  fullName: "Ahamisi Godsfavour",
+  email: "ahamisiaceman@gmail.com",
   gender: "male" as const,
 };
 
@@ -70,36 +70,35 @@ async function run(): Promise<void> {
 
   if (dryRun) {
     logger.info(
-      "Would: upsert student as SPONSORSHIP, generate invite, and email it.",
+      "Would: delete any existing record for this matric, recreate as " +
+        "SPONSORSHIP, generate invite, and email it.",
     );
     logger.info("🎉 Dry run complete.");
     return;
   }
 
-  // Upsert by matric number so re-running does not create duplicates.
+  // Delete any pre-existing record for this matric number first. An earlier run
+  // created one with the wrong name/email (which bounced), so we wipe it and
+  // create a clean record rather than updating in place — this also clears any
+  // stale invite generated with the wrong name.
   const matricNumber = STUDENT.matricNumber.toUpperCase();
-  let student = await Student.findOne({ matricNumber });
-
-  if (student) {
-    logger.info("Existing student found — updating.");
-    student.fullName = STUDENT.fullName;
-    student.email = STUDENT.email;
-    student.gender = STUDENT.gender;
-    student.packageId = pkg._id as mongoose.Types.ObjectId;
-    student.paymentStatus = PaymentStatus.SPONSORSHIP;
-    student.totalPaid = 0;
+  const deleted = await Student.deleteOne({ matricNumber });
+  if (deleted.deletedCount > 0) {
+    logger.info(`🗑️  Removed existing record for ${matricNumber}.`);
   } else {
-    student = new Student({
-      fullName: STUDENT.fullName,
-      matricNumber,
-      email: STUDENT.email,
-      gender: STUDENT.gender,
-      packageId: pkg._id,
-      selectedDays: [], // FULL package includes every day; selection unused
-      totalPaid: 0,
-      paymentStatus: PaymentStatus.SPONSORSHIP,
-    });
+    logger.info(`No existing record for ${matricNumber} — creating new.`);
   }
+
+  const student = new Student({
+    fullName: STUDENT.fullName,
+    matricNumber,
+    email: STUDENT.email,
+    gender: STUDENT.gender,
+    packageId: pkg._id,
+    selectedDays: [], // FULL package includes every day; selection unused
+    totalPaid: 0,
+    paymentStatus: PaymentStatus.SPONSORSHIP,
+  });
   await student.save();
   logger.info(`✓ Student saved (${student._id}) with status SPONSORSHIP`);
 
