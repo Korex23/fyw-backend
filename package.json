@@ -12,6 +12,7 @@
     "houses:save": "ts-node scripts/save-house-assignments.ts",
     "houses:mail": "ts-node scripts/assign-houses-and-mail.ts",
     "days:swap": "ts-node scripts/swap-days-and-mail.ts",
+    "student:add-sponsored": "ts-node scripts/add-sponsored-student.ts",
     "test": "jest --detectOpenHandles"
   },
   "keywords": [

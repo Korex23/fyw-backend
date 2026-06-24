@@ -4,6 +4,9 @@ export enum PaymentStatus {
   NOT_PAID = "NOT_PAID",
   PARTIALLY_PAID = "PARTIALLY_PAID",
   FULLY_PAID = "FULLY_PAID",
+  // Student attends on a fully-sponsored basis — no payment is collected but
+  // they receive full access and an invite, same as a FULLY_PAID student.
+  SPONSORSHIP = "SPONSORSHIP",
 }
 
 export enum TransactionStatus {
