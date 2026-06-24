@@ -13,6 +13,7 @@
     "houses:mail": "ts-node scripts/assign-houses-and-mail.ts",
     "days:swap": "ts-node scripts/swap-days-and-mail.ts",
     "student:add-sponsored": "ts-node scripts/add-sponsored-student.ts",
+    "student:assign-white-house": "ts-node scripts/assign-white-house.ts",
     "test": "jest --detectOpenHandles"
   },
   "keywords": [
