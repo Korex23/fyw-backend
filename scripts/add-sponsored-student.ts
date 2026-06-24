@@ -21,6 +21,7 @@ import { env } from "../src/config/env";
 import Student from "../src/models/Student";
 import { IPackage } from "../src/models/Package";
 import { PaymentStatus } from "../src/types";
+import { getEffectivePrice } from "../src/constants/discounts";
 import packageService from "../src/services/package.service";
 import inviteService from "../src/services/invite.service";
 import mailService from "../src/services/mail.service";
@@ -89,6 +90,10 @@ async function run(): Promise<void> {
     logger.info(`No existing record for ${matricNumber} — creating new.`);
   }
 
+  // Sponsored, so nothing is actually collected — but mark totalPaid as the
+  // full effective price so the computed outstanding balance is 0.
+  const effectivePrice = getEffectivePrice(matricNumber, pkg);
+
   const student = new Student({
     fullName: STUDENT.fullName,
     matricNumber,
@@ -96,7 +101,7 @@ async function run(): Promise<void> {
     gender: STUDENT.gender,
     packageId: pkg._id,
     selectedDays: [], // FULL package includes every day; selection unused
-    totalPaid: 0,
+    totalPaid: effectivePrice, // outstanding = effectivePrice - totalPaid = 0
     paymentStatus: PaymentStatus.SPONSORSHIP,
   });
   await student.save();
