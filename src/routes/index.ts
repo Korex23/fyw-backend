@@ -4,6 +4,7 @@ import paymentRoutes from "./payment.routes";
 import adminRoutes from "./admin.routes";
 import webhookRoutes from "./webhook.routes";
 import groupRoutes from "./group.routes";
+import twoPersonGroupRoutes from "./twoPersonGroup.routes";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/payments", paymentRoutes);
 router.use("/admin", adminRoutes);
 router.use("/webhooks", webhookRoutes);
 router.use("/group", groupRoutes);
+router.use("/two-person-group", twoPersonGroupRoutes);
 
 export default router;

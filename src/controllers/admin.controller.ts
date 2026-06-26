@@ -17,6 +17,7 @@ import { PaymentStatus, TransactionStatus, AuthRequest } from "../types";
 import { UnauthorizedError, BadRequestError } from "../utils/errors";
 import { Parser } from "json2csv";
 import GroupRegistration from "../models/GroupRegistration";
+import TwoPersonGroupRegistration from "../models/TwoPersonGroupRegistration";
 
 export const loginSchema = z.object({
   body: z.object({
@@ -125,17 +126,34 @@ export class AdminController {
           { $match: { status: TransactionStatus.SUCCESS } },
           { $group: { _id: null, total: { $sum: "$amount" } } },
         ]),
-        GroupRegistration.countDocuments(),
-        GroupRegistration.countDocuments({ paymentStatus: "FULLY_PAID" }),
-        GroupRegistration.aggregate([
-          { $match: { paymentStatus: "FULLY_PAID" } },
-          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        Promise.all([
+          GroupRegistration.countDocuments(),
+          TwoPersonGroupRegistration.countDocuments(),
+        ]).then(([regularGroups, twoPersonGroups]) => regularGroups + twoPersonGroups),
+        Promise.all([
+          GroupRegistration.countDocuments({ paymentStatus: "FULLY_PAID" }),
+          TwoPersonGroupRegistration.countDocuments({
+            paymentStatus: "FULLY_PAID",
+          }),
+        ]).then(
+          ([regularGroups, twoPersonGroups]) => regularGroups + twoPersonGroups,
+        ),
+        Promise.all([
+          GroupRegistration.aggregate([
+            { $match: { paymentStatus: "FULLY_PAID" } },
+            { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+          ]),
+          TwoPersonGroupRegistration.aggregate([
+            { $match: { paymentStatus: "FULLY_PAID" } },
+            { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+          ]),
         ]),
       ]);
 
       // Individual students outstanding (exclude group members — their outstanding is at group level)
       const individualStudents = await Student.find({
         groupRegistrationId: { $exists: false },
+        twoPersonGroupRegistrationId: { $exists: false },
       }).populate("packageId");
       let outstandingTotal = 0; // owed by EVERYONE (started + not started)
       let startedPayersOutstanding = 0; // owed only by those who have started paying
@@ -157,6 +175,17 @@ export class AdminController {
         { $group: { _id: null, total: { $sum: { $subtract: ["$totalAmount", "$totalPaid"] } } } },
       ]);
       outstandingTotal += groupOutstandingAgg[0]?.total || 0;
+      const twoPersonGroupOutstandingAgg =
+        await TwoPersonGroupRegistration.aggregate([
+          { $match: { paymentStatus: { $ne: "FULLY_PAID" } } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: { $subtract: ["$totalAmount", "$totalPaid"] } },
+            },
+          },
+        ]);
+      outstandingTotal += twoPersonGroupOutstandingAgg[0]?.total || 0;
 
       // Outstanding from groups that have started paying but aren't fully paid yet.
       const startedGroupOutstandingAgg = await GroupRegistration.aggregate([
@@ -164,6 +193,23 @@ export class AdminController {
         { $group: { _id: null, total: { $sum: { $subtract: ["$totalAmount", "$totalPaid"] } } } },
       ]);
       startedPayersOutstanding += startedGroupOutstandingAgg[0]?.total || 0;
+      const startedTwoPersonGroupOutstandingAgg =
+        await TwoPersonGroupRegistration.aggregate([
+          {
+            $match: {
+              paymentStatus: { $ne: "FULLY_PAID" },
+              totalPaid: { $gt: 0 },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: { $subtract: ["$totalAmount", "$totalPaid"] } },
+            },
+          },
+        ]);
+      startedPayersOutstanding +=
+        startedTwoPersonGroupOutstandingAgg[0]?.total || 0;
 
       // Projected revenue if everyone who has started paying clears their balance.
       const currentRevenue = totalRevenue[0]?.total || 0;
@@ -226,7 +272,9 @@ export class AdminController {
             totalGroups,
             fullyPaidGroups,
             pendingGroups: totalGroups - fullyPaidGroups,
-            groupRevenue: groupRevenue[0]?.total || 0,
+            groupRevenue:
+              (groupRevenue[0][0]?.total || 0) +
+              (groupRevenue[1][0]?.total || 0),
           },
         },
       });
@@ -566,8 +614,16 @@ export class AdminController {
         Phone: String(student.phone) || "N/A",
         Package: student.packageId.name,
         "Package Price": student.packageId.price,
-        "Registration Type": student.groupRegistrationId ? "Group" : "Individual",
-        "Group ID": student.groupRegistrationId ? student.groupRegistrationId.toString() : "N/A",
+        "Registration Type": student.groupRegistrationId
+          ? "Group"
+          : student.twoPersonGroupRegistrationId
+            ? "Two-Person Group"
+            : "Individual",
+        "Group ID": student.groupRegistrationId
+          ? student.groupRegistrationId.toString()
+          : student.twoPersonGroupRegistrationId
+            ? student.twoPersonGroupRegistrationId.toString()
+            : "N/A",
         "Selected Days":
           student.selectedDays && student.selectedDays.length > 0
             ? student.selectedDays.join(", ")

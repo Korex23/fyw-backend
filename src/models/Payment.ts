@@ -10,6 +10,7 @@ export interface IPayment extends Document {
   paidAt?: Date;
   rawGatewayPayload?: any;
   groupRegistrationId?: Types.ObjectId;
+  twoPersonGroupRegistrationId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +51,10 @@ const PaymentSchema = new Schema<IPayment>(
     groupRegistrationId: {
       type: Schema.Types.ObjectId,
       ref: "GroupRegistration",
+    },
+    twoPersonGroupRegistrationId: {
+      type: Schema.Types.ObjectId,
+      ref: "TwoPersonGroupRegistration",
     },
   },
   {

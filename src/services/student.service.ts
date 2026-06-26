@@ -2,6 +2,7 @@ import Student, { IStudent } from "../models/Student";
 import { IPackage } from "../models/Package";
 import Payment from "../models/Payment";
 import GroupRegistration from "../models/GroupRegistration";
+import TwoPersonGroupRegistration from "../models/TwoPersonGroupRegistration";
 import { PaymentStatus } from "../types";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import packageService from "./package.service";
@@ -214,6 +215,21 @@ export class StudentService {
         },
       );
     }
+    if (student.twoPersonGroupRegistrationId) {
+      await TwoPersonGroupRegistration.updateOne(
+        {
+          _id: student.twoPersonGroupRegistrationId,
+          "members.studentId": student._id,
+        },
+        {
+          $set: {
+            "members.$.fullName": student.fullName,
+            "members.$.matricNumber": student.matricNumber,
+            "members.$.email": student.email,
+          },
+        },
+      );
+    }
 
     return student;
   }
@@ -358,7 +374,7 @@ export class StudentService {
 
     // Group members attend on the full-experience package managed at group
     // level; they cannot independently change their days here.
-    if (student.groupRegistrationId) {
+    if (student.groupRegistrationId || student.twoPersonGroupRegistrationId) {
       throw new BadRequestError(
         "Group members cannot change their days individually.",
       );
@@ -433,6 +449,13 @@ export class StudentService {
     let effectivePrice = getEffectivePrice(student.matricNumber, pkg);
     if (student.groupRegistrationId) {
       const group = await GroupRegistration.findById(student.groupRegistrationId);
+      if (group) {
+        effectivePrice = Math.round(group.totalAmount / group.members.length);
+      }
+    } else if (student.twoPersonGroupRegistrationId) {
+      const group = await TwoPersonGroupRegistration.findById(
+        student.twoPersonGroupRegistrationId,
+      );
       if (group) {
         effectivePrice = Math.round(group.totalAmount / group.members.length);
       }

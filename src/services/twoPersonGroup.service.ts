@@ -1,7 +1,9 @@
 import axios from "axios";
 import Student from "../models/Student";
 import Payment from "../models/Payment";
-import GroupRegistration, { IGroupRegistration } from "../models/GroupRegistration";
+import TwoPersonGroupRegistration, {
+  ITwoPersonGroupRegistration,
+} from "../models/TwoPersonGroupRegistration";
 import { PaymentStatus, TransactionStatus } from "../types";
 import { BadRequestError, NotFoundError } from "../utils/errors";
 import { generateReference } from "../utils/helpers";
@@ -12,14 +14,11 @@ import logger from "../utils/logger";
 import { env } from "../config/env";
 import { EVENT_DAY_KEYS } from "../constants/eventDays";
 
-// 3 members x 60,000 = 180,000, less a 10% group discount = 162,000
-const GROUP_TOTAL = 162000;
+const TWO_PERSON_GROUP_SIZE = 2;
 const GROUP_PACKAGE_CODE = "F";
-const GROUP_SIZE = 3;
-// Each member's honest share of the group total (keeps per-student totals summing to GROUP_TOTAL)
-const GROUP_MEMBER_SHARE = Math.round(GROUP_TOTAL / GROUP_SIZE);
+const GROUP_DISCOUNT_RATE = 0.1;
 
-export interface GroupMemberInput {
+export interface TwoPersonGroupMemberInput {
   matricNumber: string;
   fullName: string;
   gender: "male" | "female";
@@ -27,9 +26,15 @@ export interface GroupMemberInput {
   phone?: string;
 }
 
-export class GroupService {
+export class TwoPersonGroupService {
+  private getGroupTotal(packagePrice: number): number {
+    return Math.round(
+      packagePrice * TWO_PERSON_GROUP_SIZE * (1 - GROUP_DISCOUNT_RATE),
+    );
+  }
+
   async registerGroup(
-    memberInputs: GroupMemberInput[],
+    memberInputs: TwoPersonGroupMemberInput[],
     payerEmail: string,
   ): Promise<{
     groupId: string;
@@ -37,18 +42,20 @@ export class GroupService {
     outstanding: number;
     members: Array<{ matricNumber: string; fullName: string; email?: string }>;
   }> {
-    if (memberInputs.length !== GROUP_SIZE) {
-      throw new BadRequestError(`A group must have exactly ${GROUP_SIZE} members`);
+    if (memberInputs.length !== TWO_PERSON_GROUP_SIZE) {
+      throw new BadRequestError(
+        `A two-person group must have exactly ${TWO_PERSON_GROUP_SIZE} members`,
+      );
     }
 
     const matricNumbers = memberInputs.map((m) => m.matricNumber.toUpperCase());
-    if (new Set(matricNumbers).size !== GROUP_SIZE) {
+    if (new Set(matricNumbers).size !== TWO_PERSON_GROUP_SIZE) {
       throw new BadRequestError("All members must have different matric numbers");
     }
 
     const fullPkg = await packageService.getPackageByCode(GROUP_PACKAGE_CODE);
+    const totalAmount = this.getGroupTotal(fullPkg.price);
 
-    // Pre-flight: only block students whose balance has actually been committed.
     const existingStudents = await Student.find({
       matricNumber: { $in: matricNumbers },
     });
@@ -70,7 +77,7 @@ export class GroupService {
 
     if (blocked.length > 0) {
       throw new BadRequestError(
-        `These members cannot join a group: ${blocked.join(
+        `These members cannot join a two-person group: ${blocked.join(
           ", ",
         )}. Resolve their existing registration first.`,
       );
@@ -85,7 +92,6 @@ export class GroupService {
         let student = existingByMatric.get(input.matricNumber.toUpperCase());
 
         if (student) {
-          // Safe to re-purpose: this student has no committed payment history.
           student.fullName = input.fullName;
           student.gender = input.gender;
           if (input.email) student.email = input.email;
@@ -121,27 +127,28 @@ export class GroupService {
       email: s.email,
     }));
 
-    const group = await GroupRegistration.create({
+    const group = await TwoPersonGroupRegistration.create({
       members: groupMembers,
       payerEmail,
-      totalAmount: GROUP_TOTAL,
+      totalAmount,
       totalPaid: 0,
       paymentStatus: "NOT_PAID",
     });
 
-    // Stamp groupRegistrationId on each student for admin visibility.
     await Promise.all(
       studentRecords.map((s) =>
-        Student.findByIdAndUpdate(s._id, { groupRegistrationId: group._id }),
+        Student.findByIdAndUpdate(s._id, {
+          twoPersonGroupRegistrationId: group._id,
+        }),
       ),
     );
 
-    logger.info(`Group registration created: ${group._id}`);
+    logger.info(`Two-person group registration created: ${group._id}`);
 
     return {
       groupId: group._id.toString(),
-      totalAmount: GROUP_TOTAL,
-      outstanding: GROUP_TOTAL,
+      totalAmount,
+      outstanding: totalAmount,
       members: groupMembers.map((m) => ({
         matricNumber: m.matricNumber,
         fullName: m.fullName,
@@ -160,20 +167,19 @@ export class GroupService {
     amount: number;
     outstanding: number;
   }> {
-    const group = await GroupRegistration.findById(groupId);
-    if (!group) throw new NotFoundError("Group registration not found");
+    const group = await TwoPersonGroupRegistration.findById(groupId);
+    if (!group) throw new NotFoundError("Two-person group registration not found");
 
     if (group.paymentStatus === "FULLY_PAID") {
-      throw new BadRequestError("This group has already fully paid");
+      throw new BadRequestError("This two-person group has already fully paid");
     }
 
     if (amount <= 0) throw new BadRequestError("Amount must be greater than 0");
 
-    // Only successful group payments reduce the outstanding balance.
     const committedAgg = await Payment.aggregate([
       {
         $match: {
-          groupRegistrationId: group._id,
+          twoPersonGroupRegistrationId: group._id,
           status: TransactionStatus.SUCCESS,
         },
       },
@@ -181,10 +187,10 @@ export class GroupService {
     ]);
 
     const committed = committedAgg[0]?.total || 0;
-    const outstanding = Math.max(GROUP_TOTAL - committed, 0);
+    const outstanding = Math.max(group.totalAmount - committed, 0);
 
     if (outstanding <= 0) {
-      throw new BadRequestError("This group has already fully paid");
+      throw new BadRequestError("This two-person group has already fully paid");
     }
 
     if (amount > outstanding) {
@@ -195,8 +201,6 @@ export class GroupService {
 
     const fullPkg = await packageService.getPackageByCode(GROUP_PACKAGE_CODE);
 
-    // Attribute the payment to whichever member matches the payer's email so
-    // per-student history is correct; fall back to the first member otherwise.
     const payerMember =
       group.members.find(
         (m) => m.email && m.email.toLowerCase() === payerEmail.toLowerCase(),
@@ -214,9 +218,7 @@ export class GroupService {
       );
     }
 
-    // Tag the redirect so the frontend knows this is a group payment and which
-    // group to route back to once Flutterwave appends its own params.
-    redirectUrlObj.searchParams.set("type", "group");
+    redirectUrlObj.searchParams.set("type", "two-person-group");
     redirectUrlObj.searchParams.set("groupId", groupId);
     const redirectUrl = redirectUrlObj.toString();
 
@@ -229,11 +231,11 @@ export class GroupService {
       amount,
       reference,
       status: TransactionStatus.PENDING,
-      groupRegistrationId: groupId,
+      twoPersonGroupRegistrationId: groupId,
     });
 
     logger.info(
-      `Group payment initialized: ${reference} for group ${groupId}, amount: NGN ${amount}`,
+      `Two-person group payment initialized: ${reference} for group ${groupId}, amount: NGN ${amount}`,
     );
 
     try {
@@ -250,13 +252,13 @@ export class GroupService {
             name: payerStudent.fullName,
           },
           meta: {
-            groupRegistrationId: groupId,
+            twoPersonGroupRegistrationId: groupId,
             packageCode: fullPkg.code,
-            isGroupPayment: true,
+            isTwoPersonGroupPayment: true,
           },
           customizations: {
-            title: "ULES Final Year Week - Group Package",
-            description: `Group Full Experience (3 members) - paying NGN ${amount.toLocaleString()} of NGN ${GROUP_TOTAL.toLocaleString()}`,
+            title: "ULES Final Year Week - 2-Person Group Package",
+            description: `2-person Full Experience group - paying NGN ${amount.toLocaleString()} of NGN ${group.totalAmount.toLocaleString()}`,
           },
         },
         {
@@ -268,11 +270,13 @@ export class GroupService {
       );
 
       if (response.status !== "success" || !response.data?.link) {
-        logger.error({ response }, "Flutterwave group payment initialize failed");
-        // Clean up the pending payment if Flutterwave rejected it.
+        logger.error(
+          { response },
+          "Flutterwave two-person group payment initialize failed",
+        );
         await Payment.findByIdAndDelete(payment._id);
         throw new BadRequestError(
-          response.message || "Failed to initialize group payment",
+          response.message || "Failed to initialize two-person group payment",
         );
       }
 
@@ -288,7 +292,7 @@ export class GroupService {
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         error?.message ||
-        "Failed to initialize group payment";
+        "Failed to initialize two-person group payment";
       throw new BadRequestError(msg);
     }
   }
@@ -297,62 +301,62 @@ export class GroupService {
     groupRegistrationId: string,
     amountPaid: number,
   ): Promise<void> {
-    const group = await GroupRegistration.findById(groupRegistrationId);
+    const group = await TwoPersonGroupRegistration.findById(groupRegistrationId);
     if (!group) {
-      throw new NotFoundError("Group registration not found");
+      throw new NotFoundError("Two-person group registration not found");
     }
 
     const fullPkg = await packageService.getPackageByCode(GROUP_PACKAGE_CODE);
 
-    // Source of truth = sum of all SUCCESS payments for this group.
     const agg = await Payment.aggregate([
       {
         $match: {
-          groupRegistrationId: group._id,
+          twoPersonGroupRegistrationId: group._id,
           status: TransactionStatus.SUCCESS,
         },
       },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
     const collected = agg[0]?.total || 0;
-    const outstanding = Math.max(GROUP_TOTAL - collected, 0);
-    const isFullyPaid = collected >= GROUP_TOTAL;
+    const outstanding = Math.max(group.totalAmount - collected, 0);
+    const isFullyPaid = collected >= group.totalAmount;
+    const memberShare = Math.round(group.totalAmount / group.members.length);
 
-    if (collected > GROUP_TOTAL) {
+    if (collected > group.totalAmount) {
       logger.warn(
-        `Group ${groupRegistrationId} overpaid: collected NGN ${collected} of NGN ${GROUP_TOTAL} (NGN ${collected - GROUP_TOTAL} over)`,
+        `Two-person group ${groupRegistrationId} overpaid: collected NGN ${collected} of NGN ${group.totalAmount} (NGN ${collected - group.totalAmount} over)`,
       );
     }
 
     logger.info(
-      `Group ${groupRegistrationId} payment: NGN ${collected} / NGN ${GROUP_TOTAL} - outstanding NGN ${outstanding}`,
+      `Two-person group ${groupRegistrationId} payment: NGN ${collected} / NGN ${group.totalAmount} - outstanding NGN ${outstanding}`,
     );
 
     if (isFullyPaid) {
-      // Atomically claim the fully-paid transition.
-      const claimed = await GroupRegistration.findOneAndUpdate(
+      const claimed = await TwoPersonGroupRegistration.findOneAndUpdate(
         { _id: group._id, paymentStatus: { $ne: "FULLY_PAID" } },
         { paymentStatus: "FULLY_PAID", totalPaid: collected },
         { new: true },
       );
 
       if (!claimed) {
-        logger.info(`Group ${groupRegistrationId} already finalized - skipping`);
+        logger.info(
+          `Two-person group ${groupRegistrationId} already finalized - skipping`,
+        );
         return;
       }
 
-      await this.finalizeGroup(claimed, fullPkg);
+      await this.finalizeGroup(claimed, fullPkg, memberShare);
       return;
     }
 
-    // Partial payment - record the true total and notify all members.
     group.totalPaid = collected;
     group.paymentStatus = collected > 0 ? "PARTIALLY_PAID" : "NOT_PAID";
     await group.save();
 
     const memberPaidShare = Math.min(
-      Math.round(collected / GROUP_SIZE),
-      GROUP_MEMBER_SHARE,
+      Math.round(collected / group.members.length),
+      memberShare,
     );
 
     await Promise.all(
@@ -374,7 +378,7 @@ export class GroupService {
           } catch (error) {
             logger.error(
               { memberMatric: member.matricNumber, error },
-              "Group partial payment email failed",
+              "Two-person group partial payment email failed",
             );
           }
         }
@@ -382,25 +386,28 @@ export class GroupService {
     );
   }
 
-  // Marks every member fully paid, generates their invites, and emails them.
-  // Called exactly once per group.
   private async finalizeGroup(
-    group: IGroupRegistration,
+    group: ITwoPersonGroupRegistration,
     fullPkg: Awaited<ReturnType<typeof packageService.getPackageByCode>>,
+    memberShare: number,
   ): Promise<void> {
     await Promise.all(
       group.members.map(async (member) => {
-        const student = await Student.findById(member.studentId).populate("packageId");
+        const student = await Student.findById(member.studentId).populate(
+          "packageId",
+        );
         if (!student) {
-          logger.warn(`Group member student ${member.studentId} not found`);
+          logger.warn(`Two-person group member student ${member.studentId} not found`);
           return;
         }
 
-        student.totalPaid = GROUP_MEMBER_SHARE;
+        student.totalPaid = memberShare;
         student.paymentStatus = PaymentStatus.FULLY_PAID;
         await student.save();
 
-        logger.info(`Group member ${student.matricNumber} marked as FULLY_PAID`);
+        logger.info(
+          `Two-person group member ${student.matricNumber} marked as FULLY_PAID`,
+        );
 
         try {
           const invites = await inviteService.generateInvites(student, fullPkg);
@@ -421,48 +428,20 @@ export class GroupService {
         } catch (error) {
           logger.error(
             { studentId: student._id.toString(), error },
-            "Group invite generation or email failed for member",
+            "Two-person group invite generation or email failed for member",
           );
         }
       }),
     );
 
-    logger.info(`Group ${group._id} fully processed - all invites sent`);
+    logger.info(`Two-person group ${group._id} fully processed`);
   }
 
-  async getGroupById(groupId: string): Promise<IGroupRegistration> {
-    const group = await GroupRegistration.findById(groupId);
-    if (!group) throw new NotFoundError("Group registration not found");
+  async getGroupById(groupId: string): Promise<ITwoPersonGroupRegistration> {
+    const group = await TwoPersonGroupRegistration.findById(groupId);
+    if (!group) throw new NotFoundError("Two-person group registration not found");
     return group;
-  }
-
-  // Admin: delete a group along with all 3 member students and their payments.
-  async deleteGroup(
-    groupId: string,
-  ): Promise<{ deletedMembers: number; deletedPayments: number }> {
-    const group = await GroupRegistration.findById(groupId);
-    if (!group) throw new NotFoundError("Group registration not found");
-
-    const memberIds = group.members.map((m) => m.studentId);
-
-    const paymentResult = await Payment.deleteMany({
-      $or: [
-        { groupRegistrationId: group._id },
-        { studentId: { $in: memberIds } },
-      ],
-    });
-    const studentResult = await Student.deleteMany({ _id: { $in: memberIds } });
-    await GroupRegistration.findByIdAndDelete(groupId);
-
-    logger.info(
-      `Group ${groupId} deleted - ${studentResult.deletedCount} members, ${paymentResult.deletedCount} payments`,
-    );
-
-    return {
-      deletedMembers: studentResult.deletedCount ?? 0,
-      deletedPayments: paymentResult.deletedCount ?? 0,
-    };
   }
 }
 
-export default new GroupService();
+export default new TwoPersonGroupService();

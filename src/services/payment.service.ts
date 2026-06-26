@@ -14,6 +14,7 @@ import packageService from "./package.service";
 import inviteService from "./invite.service";
 import mailService from "./mail.service";
 import groupService from "./group.service";
+import twoPersonGroupService from "./twoPersonGroup.service";
 import logger from "../utils/logger";
 import { env } from "../config/env";
 import { getEffectivePrice } from "../constants/discounts";
@@ -45,7 +46,7 @@ export class PaymentService {
 
     // Group members can't pay individually — their balance is settled at the group
     // level via /api/group/:groupId/pay.
-    if (student.groupRegistrationId) {
+    if (student.groupRegistrationId || student.twoPersonGroupRegistrationId) {
       throw new BadRequestError(
         "This student is part of a group registration and must pay through the group.",
       );
@@ -268,6 +269,14 @@ export class PaymentService {
     // Group payment: delegate all member processing to group service
     if (payment.groupRegistrationId) {
       await groupService.processGroupPayment(payment.groupRegistrationId.toString(), amountInNaira);
+      return;
+    }
+
+    if (payment.twoPersonGroupRegistrationId) {
+      await twoPersonGroupService.processGroupPayment(
+        payment.twoPersonGroupRegistrationId.toString(),
+        amountInNaira,
+      );
       return;
     }
 

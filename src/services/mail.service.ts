@@ -767,7 +767,7 @@ export class MailService {
             </div>
           </div>
 
-          <p class="p">Once your group completes the full ${formatCurrency(groupPackageTotal * 100)} payment, all 3 members will receive their personalised invitations.</p>
+          <p class="p">Once your group completes the full ${formatCurrency(groupPackageTotal * 100)} payment, all members will receive their personalised invitations.</p>
 
           <div class="ctaWrap">
             <a class="btn" href="${env.FRONTEND_URL}/login">Complete Group Payment</a>

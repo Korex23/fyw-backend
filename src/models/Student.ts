@@ -19,6 +19,7 @@ export interface IStudent extends Document {
   houseAssignmentEmailSentAt?: Date;
   daySwapAppliedAt?: Date;
   groupRegistrationId?: Types.ObjectId;
+  twoPersonGroupRegistrationId?: Types.ObjectId;
   invites?: {
     imageUrl?: string;
     generatedAt?: Date;
@@ -97,6 +98,10 @@ const StudentSchema = new Schema<IStudent>(
     groupRegistrationId: {
       type: Schema.Types.ObjectId,
       ref: "GroupRegistration",
+    },
+    twoPersonGroupRegistrationId: {
+      type: Schema.Types.ObjectId,
+      ref: "TwoPersonGroupRegistration",
     },
     invites: {
       imageUrl: String,
