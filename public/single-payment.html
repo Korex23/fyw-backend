@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ULES Final Year Week — Register &amp; Pay</title>
+<style>
+  :root {
+    --bg: #0f1020;
+    --card: #1a1b35;
+    --accent: #7c5cff;
+    --text: #eef0ff;
+    --muted: #9aa0c5;
+    --border: #2c2e52;
+    --error: #ff6b6b;
+    --success: #2ecc71;
+    --warn: #ffb84d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #20224a 0%, var(--bg) 60%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+  .wrap { max-width: 600px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { font-size: 24px; margin: 0 0 6px; }
+  header p { color: var(--muted); margin: 0; font-size: 14px; }
+  .tabs { display: flex; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 6px; margin-bottom: 20px; }
+  .tab {
+    flex: 1; text-align: center; padding: 11px; border-radius: 9px; cursor: pointer;
+    font-size: 14px; font-weight: 700; color: var(--muted); user-select: none; transition: all .15s;
+  }
+  .tab.active { background: linear-gradient(135deg, var(--accent), #5a3df0); color: #fff; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card .hint { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .field.full { grid-column: 1 / -1; }
+  label { font-size: 13px; color: var(--muted); }
+  input, select {
+    background: #12132a; border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 11px 12px; font-size: 14px; outline: none; transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .days { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .day {
+    display: flex; align-items: center; gap: 10px; background: #12132a; border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; cursor: pointer;
+  }
+  .day input { width: auto; }
+  .day.disabled { opacity: .4; cursor: not-allowed; }
+  button {
+    width: 100%; background: linear-gradient(135deg, var(--accent), #5a3df0); color: #fff; border: none;
+    border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform .1s, opacity .15s;
+  }
+  button:hover { transform: translateY(-1px); }
+  button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+  .msg { padding: 12px 14px; border-radius: 10px; font-size: 14px; margin-top: 14px; display: none; }
+  .msg.show { display: block; }
+  .msg.error { background: rgba(255,107,107,.12); border: 1px solid var(--error); color: #ffb3b3; }
+  .msg.ok { background: rgba(46,204,113,.12); border: 1px solid var(--success); color: #aef0c8; }
+  .msg.warn { background: rgba(255,184,77,.12); border: 1px solid var(--warn); color: #ffd9a0; }
+  .hidden { display: none; }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .row:last-child { border-bottom: none; }
+  .row .v { font-weight: 700; }
+  .outstanding { font-size: 20px; color: var(--accent); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.NOT_PAID { background: rgba(255,107,107,.15); color: #ffb3b3; }
+  .badge.PARTIALLY_PAID { background: rgba(255,184,77,.18); color: var(--warn); }
+  .badge.FULLY_PAID { background: rgba(46,204,113,.15); color: #aef0c8; }
+  small.note { color: var(--muted); display: block; margin-top: 6px; font-size: 12px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ULES Final Year Week</h1>
+    <p>Single registration &amp; payment</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" id="tabPay" data-mode="pay">Already registered — pay</div>
+    <div class="tab" id="tabRegister" data-mode="register">Register &amp; pay</div>
+  </div>
+
+  <!-- MODE: PAY (lookup by matric) -->
+  <div class="card" id="payCard">
+    <h2>Find your registration</h2>
+    <p class="hint">Enter your matric number to see your balance and pay.</p>
+    <form id="lookupForm">
+      <div class="field">
+        <label>Matric number</label>
+        <input name="matricNumber" required placeholder="e.g. 190312345" autocomplete="off" />
+      </div>
+      <button type="submit" id="lookupBtn">Check &amp; continue</button>
+      <div class="msg error" id="lookupError"></div>
+      <div class="msg warn" id="lookupWarn"></div>
+    </form>
+  </div>
+
+  <!-- MODE: REGISTER -->
+  <div class="card hidden" id="registerCard">
+    <h2>Your details</h2>
+    <p class="hint">Register (or update your details) and choose a package, then pay.</p>
+    <form id="registerForm">
+      <div class="grid">
+        <div class="field full">
+          <label>Full name</label>
+          <input name="fullName" required minlength="2" placeholder="e.g. Ada Lovelace" />
+        </div>
+        <div class="field">
+          <label>Matric number</label>
+          <input name="matricNumber" required placeholder="e.g. 190312345" />
+        </div>
+        <div class="field">
+          <label>Gender</label>
+          <select name="gender" required>
+            <option value="">Select…</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input name="email" type="email" required placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <label>Phone (optional)</label>
+          <input name="phone" placeholder="0800…" />
+        </div>
+        <div class="field full">
+          <label>Package</label>
+          <select name="packageCode" id="packageSelect" required>
+            <option value="">Loading packages…</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field full" id="daysWrap">
+        <label id="daysLabel">Select your days</label>
+        <div class="days" id="daysList"></div>
+        <small class="note" id="daysHint"></small>
+      </div>
+
+      <button type="submit" id="registerBtn">Continue to payment</button>
+      <div class="msg error" id="registerError"></div>
+      <div class="msg warn" id="registerWarn"></div>
+    </form>
+  </div>
+
+  <!-- PAYMENT SUMMARY (shared) -->
+  <div class="card hidden" id="summaryCard">
+    <h2 id="sName"></h2>
+    <p class="hint" id="sMeta"></p>
+    <div class="row"><span>Status</span><span class="v"><span class="badge" id="sBadge"></span></span></div>
+    <div class="row"><span>Package</span><span class="v" id="sPackage"></span></div>
+    <div class="row"><span>Already paid</span><span class="v" id="sPaid"></span></div>
+    <div class="row"><span>Outstanding</span><span class="v outstanding" id="sOutstanding"></span></div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>Email (payment confirmation goes here)</label>
+      <input id="payEmail" type="email" required placeholder="you@example.com" />
+    </div>
+    <div class="field">
+      <label>Amount to pay now (NGN)</label>
+      <input id="payAmount" type="number" min="1" step="1" />
+      <small class="note">Pay the full outstanding balance or part of it. A ~2% processing fee is added at checkout.</small>
+    </div>
+    <button type="button" id="payBtn">Proceed to payment</button>
+    <div class="msg error" id="payError"></div>
+    <div class="msg ok" id="payOk"></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = "https://fyw-api.blessedbid.com/api";
+
+  const DAY_LABELS = {
+    MONDAY: "Monday — Corporate Day",
+    TUESDAY: "Tuesday — Denim Day",
+    WEDNESDAY: "Wednesday — Costume Day",
+    THURSDAY: "Thursday — Jersey Day",
+    FRIDAY: "Friday — Cultural Day / Owambe",
+  };
+  const ALL_DAYS = Object.keys(DAY_LABELS);
+
+  const ngn = (n) => "NGN " + Number(n).toLocaleString();
+  const showMsg = (el, t) => { el.textContent = t; el.classList.add("show"); };
+  const hideMsg = (el) => { el.textContent = ""; el.classList.remove("show"); };
+  const $ = (id) => document.getElementById(id);
+
+  let packages = [];
+  let currentMatric = null;
+
+  // ---------- Tab switching ----------
+  const payCard = $("payCard");
+  const registerCard = $("registerCard");
+  const summaryCard = $("summaryCard");
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      const mode = tab.dataset.mode;
+      payCard.classList.toggle("hidden", mode !== "pay");
+      registerCard.classList.toggle("hidden", mode !== "register");
+      summaryCard.classList.add("hidden");
+    });
+  });
+
+  // ---------- Load packages ----------
+  async function loadPackages() {
+    try {
+      const res = await fetch(`${API_BASE}/students/packages`);
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error();
+      packages = data.data;
+      const sel = $("packageSelect");
+      sel.innerHTML = '<option value="">Select a package…</option>' +
+        packages.map((p) => `<option value="${p.code}">${p.name} — ${ngn(p.price)}</option>`).join("");
+    } catch {
+      $("packageSelect").innerHTML = '<option value="">Could not load packages</option>';
+    }
+  }
+  loadPackages();
+
+  // ---------- Day picker (depends on package type) ----------
+  const daysWrap = $("daysWrap");
+  const daysList = $("daysList");
+  const daysLabel = $("daysLabel");
+  const daysHint = $("daysHint");
+
+  function dayRulesFor(type) {
+    switch (type) {
+      case "FULL":
+        return { show: false };
+      case "CORPORATE_OWAMBE":
+        return { show: true, count: 3, allowed: ALL_DAYS,
+          hint: "Pick exactly 3 days, including exactly one anchor day: Monday (Corporate) or Friday (Owambe)." };
+      case "CORPORATE_PLUS":
+        return { show: true, count: 2, allowed: ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY"],
+          hint: "Pick exactly 2 days from Monday–Thursday (Friday not included)." };
+      default: // TWO_DAY
+        return { show: true, count: 2, allowed: ALL_DAYS, hint: "Pick exactly 2 days." };
+    }
+  }
+
+  function renderDays() {
+    const code = $("packageSelect").value;
+    const pkg = packages.find((p) => p.code === code);
+    if (!pkg) { daysWrap.classList.add("hidden"); return; }
+    const rules = dayRulesFor(pkg.packageType);
+    if (!rules.show) {
+      daysWrap.classList.add("hidden");
+      return;
+    }
+    daysWrap.classList.remove("hidden");
+    daysLabel.textContent = `Select your days (${rules.count})`;
+    daysHint.textContent = rules.hint;
+    daysList.innerHTML = ALL_DAYS.map((d) => {
+      const allowed = rules.allowed.includes(d);
+      return `<label class="day ${allowed ? "" : "disabled"}">
+        <input type="checkbox" value="${d}" ${allowed ? "" : "disabled"} />
+        <span>${DAY_LABELS[d]}</span>
+      </label>`;
+    }).join("");
+  }
+  $("packageSelect").addEventListener("change", renderDays);
+
+  function collectSelectedDays(pkg) {
+    const rules = dayRulesFor(pkg.packageType);
+    if (!rules.show) return null; // FULL — server fills all days
+    const chosen = [...daysList.querySelectorAll("input:checked")].map((c) => c.value);
+    if (chosen.length !== rules.count) {
+      throw new Error(`Please select exactly ${rules.count} day(s) for this package.`);
+    }
+    if (pkg.packageType === "CORPORATE_OWAMBE") {
+      const anchors = chosen.filter((d) => d === "MONDAY" || d === "FRIDAY");
+      if (anchors.length !== 1) {
+        throw new Error("Select exactly one anchor day: Monday (Corporate) or Friday (Owambe).");
+      }
+    }
+    return chosen;
+  }
+
+  // ---------- Shared: render payment summary from a student lookup ----------
+  function renderSummary(student, pkg, outstanding) {
+    currentMatric = student.matricNumber;
+    $("sName").textContent = student.fullName;
+    $("sMeta").textContent = student.matricNumber;
+    const badge = $("sBadge");
+    badge.textContent = (student.paymentStatus || "NOT_PAID").replace("_", " ");
+    badge.className = "badge " + (student.paymentStatus || "NOT_PAID");
+    $("sPackage").textContent = pkg.name;
+    $("sPaid").textContent = ngn(student.totalPaid || 0);
+    $("sOutstanding").textContent = ngn(outstanding);
+    if (student.email) $("payEmail").value = student.email;
+    $("payAmount").value = outstanding > 0 ? outstanding : "";
+    $("payAmount").max = outstanding;
+
+    payCard.classList.add("hidden");
+    registerCard.classList.add("hidden");
+    summaryCard.classList.remove("hidden");
+    summaryCard.scrollIntoView({ behavior: "smooth" });
+  }
+
+  // Fetch a student by matric and show the summary. Returns false if not eligible.
+  async function lookupAndShow(matric, warnEl) {
+    const res = await fetch(`${API_BASE}/students/${encodeURIComponent(matric)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "No registration found for that matric number.");
+    }
+    const { student, package: pkg, outstanding } = data.data;
+
+    if (student.groupRegistrationId || student.twoPersonGroupRegistrationId) {
+      showMsg(warnEl, "This matric number is part of a group registration — please pay through your group's page, not here.");
+      return false;
+    }
+    if (student.paymentStatus === "FULLY_PAID" || outstanding <= 0) {
+      showMsg(warnEl, "This registration is already fully paid. Nothing left to pay 🎉");
+      return false;
+    }
+    renderSummary(student, pkg, outstanding);
+    return true;
+  }
+
+  // ---------- MODE: PAY (lookup) ----------
+  const lookupForm = $("lookupForm");
+  const lookupBtn = $("lookupBtn");
+  lookupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideMsg($("lookupError")); hideMsg($("lookupWarn"));
+    const matric = lookupForm.querySelector('input[name="matricNumber"]').value.trim().toUpperCase();
+    lookupBtn.disabled = true; lookupBtn.textContent = "Checking…";
+    try {
+      await lookupAndShow(matric, $("lookupWarn"));
+    } catch (err) {
+      let m = err.message;
+      if (/not found/i.test(m)) m += " If you haven't registered yet, use the “Register & pay” tab.";
+      showMsg($("lookupError"), m);
+    } finally {
+      lookupBtn.disabled = false; lookupBtn.textContent = "Check & continue";
+    }
+  });
+
+  // ---------- MODE: REGISTER ----------
+  const registerForm = $("registerForm");
+  const registerBtn = $("registerBtn");
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideMsg($("registerError")); hideMsg($("registerWarn"));
+
+    const code = $("packageSelect").value;
+    const pkg = packages.find((p) => p.code === code);
+    if (!pkg) { showMsg($("registerError"), "Please choose a package."); return; }
+
+    let selectedDays;
+    try {
+      selectedDays = collectSelectedDays(pkg);
+    } catch (err) {
+      showMsg($("registerError"), err.message); return;
+    }
+
+    const body = {
+      matricNumber: registerForm.querySelector('input[name="matricNumber"]').value.trim().toUpperCase(),
+      fullName: registerForm.querySelector('input[name="fullName"]').value.trim(),
+      gender: registerForm.querySelector('select[name="gender"]').value,
+      email: registerForm.querySelector('input[name="email"]').value.trim(),
+      packageCode: code,
+    };
+    const phone = registerForm.querySelector('input[name="phone"]').value.trim();
+    if (phone) body.phone = phone;
+    if (selectedDays) body.selectedDays = selectedDays;
+
+    registerBtn.disabled = true; registerBtn.textContent = "Saving…";
+    try {
+      const res = await fetch(`${API_BASE}/students/identify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Registration failed. Please check your details.");
+      }
+      // Re-fetch to get the authoritative outstanding (accounts for any discount)
+      // and to block group members consistently.
+      await lookupAndShow(body.matricNumber, $("registerWarn"));
+    } catch (err) {
+      showMsg($("registerError"), err.message);
+    } finally {
+      registerBtn.disabled = false; registerBtn.textContent = "Continue to payment";
+    }
+  });
+
+  // ---------- Shared: pay ----------
+  const payBtn = $("payBtn");
+  payBtn.addEventListener("click", async () => {
+    hideMsg($("payError")); hideMsg($("payOk"));
+    const email = $("payEmail").value.trim();
+    const amount = Number($("payAmount").value);
+    if (!email) { showMsg($("payError"), "Please enter your email."); return; }
+    if (!amount || amount <= 0) { showMsg($("payError"), "Enter a valid amount to pay."); return; }
+
+    payBtn.disabled = true; payBtn.textContent = "Starting payment…";
+    try {
+      const res = await fetch(`${API_BASE}/payments/initialize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The API resolves the student by matric number passed as `studentId`.
+        body: JSON.stringify({ studentId: currentMatric, amount, email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.data?.authorization_url) {
+        throw new Error(data.message || "Could not start payment. Please try again.");
+      }
+      showMsg($("payOk"), "Redirecting to secure checkout…");
+      window.location.href = data.data.authorization_url;
+    } catch (err) {
+      showMsg($("payError"), err.message);
+      payBtn.disabled = false; payBtn.textContent = "Proceed to payment";
+    }
+  });
+</script>
+</body>
+</html>
