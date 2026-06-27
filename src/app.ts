@@ -1,3 +1,4 @@
+import path from "path";
 import express, { Application } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -47,6 +48,28 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Static payment pages (public/*.html). They use inline <script>/<style> and
+// fetch the API cross-origin, so override helmet's default CSP for these assets
+// only — the stricter API CSP set by helmet() above stays in place elsewhere.
+// __dirname is src/ in dev (ts-node) and dist/ in prod (node dist); ".." lands
+// on the project root either way, where public/ lives.
+app.use(
+  express.static(path.join(__dirname, "..", "public"), {
+    setHeaders: (res) => {
+      res.setHeader(
+        "Content-Security-Policy",
+        [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: https:",
+          "connect-src 'self' https://fyw-api.blessedbid.com",
+        ].join("; "),
+      );
+    },
+  }),
+);
 
 // Rate limiting — strict cap for header-less (non-frontend) traffic first,
 // then the general per-IP backstop for everyone.
