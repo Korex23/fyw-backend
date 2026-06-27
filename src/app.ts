@@ -52,10 +52,10 @@ app.use((req, res, next) => {
 // Static payment pages (public/*.html). They use inline <script>/<style> and
 // fetch the API cross-origin, so override helmet's default CSP for these assets
 // only — the stricter API CSP set by helmet() above stays in place elsewhere.
-// __dirname is src/ in dev (ts-node) and dist/ in prod (node dist); ".." lands
-// on the project root either way, where public/ lives.
+// Anchored on process.cwd() (the repo root the server is launched from) rather
+// than __dirname, since the compiled output nests app.js under dist/src/.
 app.use(
-  express.static(path.join(__dirname, "..", "public"), {
+  express.static(path.join(process.cwd(), "public"), {
     setHeaders: (res) => {
       res.setHeader(
         "Content-Security-Policy",
