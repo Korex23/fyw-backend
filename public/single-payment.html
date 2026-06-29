@@ -171,6 +171,22 @@
     <div class="row"><span>Already paid</span><span class="v" id="sPaid"></span></div>
     <div class="row"><span>Outstanding</span><span class="v outstanding" id="sOutstanding"></span></div>
 
+    <!-- Change package / days (downgrade only) -->
+    <div class="field full" id="changeWrap" style="margin-top:18px;">
+      <label>Change your package or days</label>
+      <select id="summaryPackageSelect"></select>
+      <small class="note">Switch to a cheaper package or adjust your days before paying. Upgrades and changes after full payment aren't available here.</small>
+    </div>
+    <div class="field full hidden" id="summaryDaysWrap">
+      <label id="summaryDaysLabel">Select your days</label>
+      <div class="days" id="summaryDaysList"></div>
+      <small class="note" id="summaryDaysHint"></small>
+    </div>
+    <button type="button" id="updateBtn">Update my days</button>
+    <div class="msg error" id="updateError"></div>
+    <div class="msg warn" id="updateWarn"></div>
+    <div class="msg ok" id="updateOk"></div>
+
     <div class="field" style="margin-top:18px;">
       <label>Email (payment confirmation goes here)</label>
       <input id="payEmail" type="email" required placeholder="you@example.com" />
@@ -205,6 +221,8 @@
 
   let packages = [];
   let currentMatric = null;
+  let currentPackage = null;
+  let currentStudent = null;
 
   // ---------- Tab switching ----------
   const payCard = $("payCard");
@@ -259,32 +277,31 @@
     }
   }
 
-  function renderDays() {
-    const code = $("packageSelect").value;
-    const pkg = packages.find((p) => p.code === code);
-    if (!pkg) { daysWrap.classList.add("hidden"); return; }
+  // Render a day picker into the given elements for a package, pre-checking any
+  // supplied days that are valid for that package.
+  function renderDayPicker(els, pkg, preselected = []) {
     const rules = dayRulesFor(pkg.packageType);
-    if (!rules.show) {
-      daysWrap.classList.add("hidden");
-      return;
-    }
-    daysWrap.classList.remove("hidden");
-    daysLabel.textContent = `Select your days (${rules.count})`;
-    daysHint.textContent = rules.hint;
-    daysList.innerHTML = ALL_DAYS.map((d) => {
+    if (!rules.show) { els.wrap.classList.add("hidden"); return; }
+    els.wrap.classList.remove("hidden");
+    els.label.textContent = `Select your days (${rules.count})`;
+    els.hint.textContent = rules.hint;
+    const pre = new Set((preselected || []).map((d) => d.toUpperCase()));
+    els.list.innerHTML = ALL_DAYS.map((d) => {
       const allowed = rules.allowed.includes(d);
+      const checked = allowed && pre.has(d) ? "checked" : "";
       return `<label class="day ${allowed ? "" : "disabled"}">
-        <input type="checkbox" value="${d}" ${allowed ? "" : "disabled"} />
+        <input type="checkbox" value="${d}" ${allowed ? "" : "disabled"} ${checked} />
         <span>${DAY_LABELS[d]}</span>
       </label>`;
     }).join("");
   }
-  $("packageSelect").addEventListener("change", renderDays);
 
-  function collectSelectedDays(pkg) {
+  // Read the chosen days from a list element and validate against package rules.
+  // Returns null for FULL (server fills all days).
+  function collectDays(listEl, pkg) {
     const rules = dayRulesFor(pkg.packageType);
-    if (!rules.show) return null; // FULL — server fills all days
-    const chosen = [...daysList.querySelectorAll("input:checked")].map((c) => c.value);
+    if (!rules.show) return null;
+    const chosen = [...listEl.querySelectorAll("input:checked")].map((c) => c.value);
     if (chosen.length !== rules.count) {
       throw new Error(`Please select exactly ${rules.count} day(s) for this package.`);
     }
@@ -297,9 +314,21 @@
     return chosen;
   }
 
+  const registerDayEls = { wrap: daysWrap, label: daysLabel, hint: daysHint, list: daysList };
+  function renderDays() {
+    const pkg = packages.find((p) => p.code === $("packageSelect").value);
+    if (!pkg) { daysWrap.classList.add("hidden"); return; }
+    renderDayPicker(registerDayEls, pkg);
+  }
+  $("packageSelect").addEventListener("change", renderDays);
+
+  const collectSelectedDays = (pkg) => collectDays(daysList, pkg);
+
   // ---------- Shared: render payment summary from a student lookup ----------
   function renderSummary(student, pkg, outstanding) {
     currentMatric = student.matricNumber;
+    currentPackage = pkg;
+    currentStudent = student;
     $("sName").textContent = student.fullName;
     $("sMeta").textContent = student.matricNumber;
     const badge = $("sBadge");
@@ -312,11 +341,104 @@
     $("payAmount").value = outstanding > 0 ? outstanding : "";
     $("payAmount").max = outstanding;
 
+    initChangeSection(student, pkg);
+
     payCard.classList.add("hidden");
     registerCard.classList.add("hidden");
     summaryCard.classList.remove("hidden");
     summaryCard.scrollIntoView({ behavior: "smooth" });
   }
+
+  // ---------- Summary: change package (downgrade) / days ----------
+  const summaryDayEls = {
+    wrap: $("summaryDaysWrap"),
+    label: $("summaryDaysLabel"),
+    hint: $("summaryDaysHint"),
+    list: $("summaryDaysList"),
+  };
+
+  // Build the package dropdown (current + cheaper options) and render the day
+  // picker for the currently selected target.
+  function initChangeSection(student, pkg) {
+    hideMsg($("updateError")); hideMsg($("updateWarn")); hideMsg($("updateOk"));
+    const cheaper = packages
+      .filter((p) => p.price < pkg.price)
+      .sort((a, b) => b.price - a.price);
+    const sel = $("summaryPackageSelect");
+    sel.innerHTML =
+      `<option value="${pkg.code}">${pkg.name} — ${ngn(pkg.price)} (current)</option>` +
+      cheaper.map((p) => `<option value="${p.code}">${p.name} — ${ngn(p.price)}</option>`).join("");
+    sel.value = pkg.code;
+    renderSummaryDays();
+  }
+
+  function renderSummaryDays() {
+    const target = packages.find((p) => p.code === $("summaryPackageSelect").value);
+    if (!target) return;
+    // Pre-check the student's existing days that are still valid for the target.
+    renderDayPicker(summaryDayEls, target, currentStudent?.selectedDays || []);
+    const isSame = target.code === currentPackage.code;
+    const rules = dayRulesFor(target.packageType);
+    const updateBtn = $("updateBtn");
+    updateBtn.textContent = isSame ? "Update my days" : "Switch to this package";
+    // Nothing to change when staying on a FULL package (every day already included).
+    updateBtn.classList.toggle("hidden", isSame && !rules.show);
+  }
+  $("summaryPackageSelect").addEventListener("change", () => {
+    hideMsg($("updateError")); hideMsg($("updateWarn")); hideMsg($("updateOk"));
+    renderSummaryDays();
+  });
+
+  const updateBtn = $("updateBtn");
+  updateBtn.addEventListener("click", async () => {
+    hideMsg($("updateError")); hideMsg($("updateWarn")); hideMsg($("updateOk"));
+    const target = packages.find((p) => p.code === $("summaryPackageSelect").value);
+    if (!target) return;
+    const isSame = target.code === currentPackage.code;
+
+    let days;
+    try {
+      days = collectDays(summaryDayEls.list, target);
+    } catch (err) {
+      showMsg($("updateError"), err.message); return;
+    }
+
+    if (isSame && !days) {
+      showMsg($("updateError"), "This package already includes every day — there's nothing to change.");
+      return;
+    }
+
+    const endpoint = isSame ? "change-days" : "downgrade-package";
+    const body = { matricNumber: currentMatric };
+    if (isSame) {
+      body.selectedDays = days;
+    } else {
+      body.newPackageCode = target.code;
+      if (days) body.selectedDays = days;
+    }
+
+    updateBtn.disabled = true;
+    updateBtn.textContent = "Saving…";
+    try {
+      const res = await fetch(`${API_BASE}/students/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Could not update. Please check your selection.");
+      }
+      showMsg($("updateOk"), isSame ? "Days updated. Refreshing your balance…" : "Package switched. Refreshing your balance…");
+      // Re-fetch the authoritative balance/status and re-render the summary.
+      await lookupAndShow(currentMatric, $("updateWarn"));
+    } catch (err) {
+      showMsg($("updateError"), err.message);
+    } finally {
+      updateBtn.disabled = false;
+      renderSummaryDays(); // restores correct button label
+    }
+  });
 
   // Fetch a student by matric and show the summary. Returns false if not eligible.
   async function lookupAndShow(matric, warnEl) {
