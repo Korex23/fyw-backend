@@ -171,11 +171,11 @@
     <div class="row"><span>Already paid</span><span class="v" id="sPaid"></span></div>
     <div class="row"><span>Outstanding</span><span class="v outstanding" id="sOutstanding"></span></div>
 
-    <!-- Change package / days (downgrade only) -->
+    <!-- Change package / days -->
     <div class="field full" id="changeWrap" style="margin-top:18px;">
-      <label>Change your package or days</label>
+      <label id="changeLabel">Change your package or days</label>
       <select id="summaryPackageSelect"></select>
-      <small class="note">Switch to a cheaper package or adjust your days before paying. Upgrades and changes after full payment aren't available here.</small>
+      <small class="note" id="changeNote">Switch to a cheaper package or adjust your days before paying. Upgrades and changes after full payment aren't available here.</small>
     </div>
     <div class="field full hidden" id="summaryDaysWrap">
       <label id="summaryDaysLabel">Select your days</label>
@@ -187,18 +187,20 @@
     <div class="msg warn" id="updateWarn"></div>
     <div class="msg ok" id="updateOk"></div>
 
-    <div class="field" style="margin-top:18px;">
-      <label>Email (payment confirmation goes here)</label>
-      <input id="payEmail" type="email" required placeholder="you@example.com" />
+    <div id="paySection">
+      <div class="field" style="margin-top:18px;">
+        <label>Email (payment confirmation goes here)</label>
+        <input id="payEmail" type="email" required placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label>Amount to pay now (NGN)</label>
+        <input id="payAmount" type="number" min="1" step="1" />
+        <small class="note">Pay the full outstanding balance or part of it. A ~2% processing fee is added at checkout.</small>
+      </div>
+      <button type="button" id="payBtn">Proceed to payment</button>
+      <div class="msg error" id="payError"></div>
+      <div class="msg ok" id="payOk"></div>
     </div>
-    <div class="field">
-      <label>Amount to pay now (NGN)</label>
-      <input id="payAmount" type="number" min="1" step="1" />
-      <small class="note">Pay the full outstanding balance or part of it. A ~2% processing fee is added at checkout.</small>
-    </div>
-    <button type="button" id="payBtn">Proceed to payment</button>
-    <div class="msg error" id="payError"></div>
-    <div class="msg ok" id="payOk"></div>
   </div>
 </div>
 
@@ -223,6 +225,7 @@
   let currentMatric = null;
   let currentPackage = null;
   let currentStudent = null;
+  let currentFullyPaid = false;
 
   // ---------- Tab switching ----------
   const payCard = $("payCard");
@@ -325,10 +328,11 @@
   const collectSelectedDays = (pkg) => collectDays(daysList, pkg);
 
   // ---------- Shared: render payment summary from a student lookup ----------
-  function renderSummary(student, pkg, outstanding) {
+  function renderSummary(student, pkg, outstanding, fullyPaid = false) {
     currentMatric = student.matricNumber;
     currentPackage = pkg;
     currentStudent = student;
+    currentFullyPaid = fullyPaid;
     $("sName").textContent = student.fullName;
     $("sMeta").textContent = student.matricNumber;
     const badge = $("sBadge");
@@ -340,6 +344,10 @@
     if (student.email) $("payEmail").value = student.email;
     $("payAmount").value = outstanding > 0 ? outstanding : "";
     $("payAmount").max = outstanding;
+
+    // Fully-paid students have nothing left to pay — they're here only to
+    // adjust their days. Hide the payment controls in that case.
+    $("paySection").classList.toggle("hidden", fullyPaid);
 
     initChangeSection(student, pkg);
 
@@ -361,14 +369,23 @@
   // picker for the currently selected target.
   function initChangeSection(student, pkg) {
     hideMsg($("updateError")); hideMsg($("updateWarn")); hideMsg($("updateOk"));
-    const cheaper = packages
-      .filter((p) => p.price < pkg.price)
-      .sort((a, b) => b.price - a.price);
+    // Downgrades aren't allowed once fully paid, so only offer cheaper packages
+    // while there's still a balance.
+    const cheaper = currentFullyPaid
+      ? []
+      : packages.filter((p) => p.price < pkg.price).sort((a, b) => b.price - a.price);
     const sel = $("summaryPackageSelect");
     sel.innerHTML =
       `<option value="${pkg.code}">${pkg.name} — ${ngn(pkg.price)} (current)</option>` +
       cheaper.map((p) => `<option value="${p.code}">${p.name} — ${ngn(p.price)}</option>`).join("");
     sel.value = pkg.code;
+    // When there's no cheaper option to pick, this is purely a day change.
+    const dayOnly = cheaper.length === 0;
+    sel.classList.toggle("hidden", dayOnly);
+    $("changeLabel").textContent = dayOnly ? "Change your days" : "Change your package or days";
+    $("changeNote").textContent = dayOnly
+      ? "Adjust which days you attend. Your package stays the same."
+      : "Switch to a cheaper package or adjust your days before paying. Upgrades and changes after full payment aren't available here.";
     renderSummaryDays();
   }
 
@@ -429,7 +446,7 @@
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Could not update. Please check your selection.");
       }
-      showMsg($("updateOk"), isSame ? "Days updated. Refreshing your balance…" : "Package switched. Refreshing your balance…");
+      showMsg($("updateOk"), isSame ? "Days updated. Refreshing…" : "Package switched. Refreshing your balance…");
       // Re-fetch the authoritative balance/status and re-render the summary.
       await lookupAndShow(currentMatric, $("updateWarn"));
     } catch (err) {
@@ -453,11 +470,16 @@
       showMsg(warnEl, "This matric number is part of a group registration — please pay through your group's page, not here.");
       return false;
     }
-    if (student.paymentStatus === "FULLY_PAID" || outstanding <= 0) {
-      showMsg(warnEl, "This registration is already fully paid. Nothing left to pay 🎉");
+    const fullyPaid = student.paymentStatus === "FULLY_PAID" || outstanding <= 0;
+    // Fully-paid students on the Full Experience package have every day already
+    // and nothing to pay — there's genuinely nothing to do here.
+    if (fullyPaid && pkg.packageType === "FULL") {
+      showMsg(warnEl, "This registration is fully paid and already includes every day 🎉");
       return false;
     }
-    renderSummary(student, pkg, outstanding);
+    // Otherwise show the summary — paying students can pay/downgrade/change days,
+    // and fully-paid students can still adjust which days they attend.
+    renderSummary(student, pkg, outstanding, fullyPaid);
     return true;
   }
 
