@@ -369,23 +369,26 @@
   // picker for the currently selected target.
   function initChangeSection(student, pkg) {
     hideMsg($("updateError")); hideMsg($("updateWarn")); hideMsg($("updateOk"));
-    // Downgrades aren't allowed once fully paid, so only offer cheaper packages
-    // while there's still a balance.
-    const cheaper = currentFullyPaid
-      ? []
-      : packages.filter((p) => p.price < pkg.price).sort((a, b) => b.price - a.price);
+    // Upgrades are always allowed (they add the price difference to what you owe).
+    // Downgrades are only allowed while there's still a balance to pay.
+    const others = packages
+      .filter((p) => (currentFullyPaid ? p.price > pkg.price : p.price !== pkg.price))
+      .sort((a, b) => a.price - b.price);
     const sel = $("summaryPackageSelect");
     sel.innerHTML =
       `<option value="${pkg.code}">${pkg.name} — ${ngn(pkg.price)} (current)</option>` +
-      cheaper.map((p) => `<option value="${p.code}">${p.name} — ${ngn(p.price)}</option>`).join("");
+      others.map((p) => {
+        const tag = p.price > pkg.price ? "upgrade" : "downgrade";
+        return `<option value="${p.code}">${p.name} — ${ngn(p.price)} (${tag})</option>`;
+      }).join("");
     sel.value = pkg.code;
-    // When there's no cheaper option to pick, this is purely a day change.
-    const dayOnly = cheaper.length === 0;
+    // When there's no other package to pick, this is purely a day change.
+    const dayOnly = others.length === 0;
     sel.classList.toggle("hidden", dayOnly);
     $("changeLabel").textContent = dayOnly ? "Change your days" : "Change your package or days";
     $("changeNote").textContent = dayOnly
       ? "Adjust which days you attend. Your package stays the same."
-      : "Switch to a cheaper package or adjust your days before paying. Upgrades and changes after full payment aren't available here.";
+      : "Switch to another package or adjust your days. Upgrading adds the price difference to what you owe; downgrading isn't available once fully paid.";
     renderSummaryDays();
   }
 
@@ -397,7 +400,11 @@
     const isSame = target.code === currentPackage.code;
     const rules = dayRulesFor(target.packageType);
     const updateBtn = $("updateBtn");
-    updateBtn.textContent = isSame ? "Update my days" : "Switch to this package";
+    updateBtn.textContent = isSame
+      ? "Update my days"
+      : target.price > currentPackage.price
+        ? "Upgrade package"
+        : "Switch to this package";
     // Nothing to change when staying on a FULL package (every day already included).
     updateBtn.classList.toggle("hidden", isSame && !rules.show);
   }
@@ -425,7 +432,12 @@
       return;
     }
 
-    const endpoint = isSame ? "change-days" : "downgrade-package";
+    const isUpgrade = !isSame && target.price > currentPackage.price;
+    const endpoint = isSame
+      ? "change-days"
+      : isUpgrade
+        ? "upgrade-package"
+        : "downgrade-package";
     const body = { matricNumber: currentMatric };
     if (isSame) {
       body.selectedDays = days;
@@ -446,7 +458,11 @@
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Could not update. Please check your selection.");
       }
-      showMsg($("updateOk"), isSame ? "Days updated. Refreshing…" : "Package switched. Refreshing your balance…");
+      showMsg($("updateOk"), isSame
+        ? "Days updated. Refreshing…"
+        : isUpgrade
+          ? "Package upgraded. Refreshing your balance…"
+          : "Package switched. Refreshing your balance…");
       // Re-fetch the authoritative balance/status and re-render the summary.
       await lookupAndShow(currentMatric, $("updateWarn"));
     } catch (err) {
